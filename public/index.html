@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto UI - Design System Analyzer</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="logo">
+                    <span class="logo-icon material-symbols-outlined">palette</span>
+                    Auto UI
+                </h1>
+                <p class="tagline">Автоматический анализ и синтез дизайн-систем</p>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Input Section -->
+            <section class="input-section">
+                <div class="card">
+                    <h2>
+                        <span class="section-icon material-symbols-outlined">search</span>
+                        Анализ веб-сайта
+                    </h2>
+                    <p class="description">
+                        Введите URL сайта для автоматического анализа стилевых паттернов
+                    </p>
+                    
+                    <form id="analysisForm" class="analysis-form">
+                        <div class="input-group">
+                            <input 
+                                type="url" 
+                                id="urlInput" 
+                                placeholder="https://example.com" 
+                                required
+                                class="url-input"
+                            >
+                            <button type="submit" class="analyze-btn" id="analyzeBtn">
+                                <span class="btn-text">
+                                    Анализировать
+                                </span>
+                                <span class="btn-loading" style="display: none;">
+                                    <span class="material-symbols-outlined">progress_activity</span>
+                                    Анализ...</span>
+                            </button>
+                        </div>
+                    </form>
+
+                    <div class="quick-links">
+                        <p>Быстрый анализ популярных сайтов:</p>
+                        <div class="quick-buttons">
+                            <button class="quick-btn" data-url="https://spb.rt.ru/">Ростелеком</button>
+                            <button class="quick-btn" data-url="https://itcontact.ru">ИтКонтакт</button>
+                            <button class="quick-btn" data-url="https://lar.tech/">LarTech</button>
+                            <button class="quick-btn" data-url="https://www.gazprombank.ru/">ГазпромБанк</button>
+                            <button class="quick-btn" data-url="https://www.sberbank.ru/ru/person?segment=all">СберБанк</button>
+                            <button class="quick-btn" data-url="https://alfabank.ru">Альфа-Банк</button>
+                            <button class="quick-btn" data-url="https://www.vtb.ru/">ВТБ Банк</button>
+                            <button class="quick-btn" data-url="https://www.tbank.ru/">Т-Банк</button>
+                            <button class="quick-btn" data-url="https://1c.ru/">1С</button>
+                            <button class="quick-btn" data-url="https://www.kaspersky.ru/">Kaspersky</button>
+                            <button class="quick-btn" data-url="https://getbootstrap.com/">Bootstrap</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section id="resultsSection" class="results-section" style="display: none;">
+                <div class="card">
+                    <div class="results-header">
+                        <h2>Результаты анализа</h2>
+                        <div class="results-meta">
+                            <span id="analysisUrl" class="url-display"></span>
+                            <span id="analysisTime" class="time-display"></span>
+                        </div>
+                    </div>
+
+                    <!-- Loading State -->
+                    <div id="loadingState" class="loading-state">
+                        <div class="spinner"></div>
+                        <p>Анализируем сайт...</p>
+                        <div class="progress-steps">
+                            <div class="step active"><span class="material-symbols-outlined">browser_updated</span>Загрузка страницы
+                            </div>
+                            <div class="step"><span class="material-symbols-outlined">palette</span>Извлечение цветов
+                            </div>
+                            <div class="step"><span class="material-symbols-outlined">format_size</span>Анализ типографики
+                            </div>
+                            <div class="step"><span class="material-symbols-outlined">account_tree</span>Кластеризация данных
+                            </div>
+                            <div class="step"><span class="material-symbols-outlined">description</span>Формирование отчета
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Results Content -->
+                    <div id="resultsContent" class="results-content" style="display: none;">
+                        <!-- Color Palette -->
+                        <div class="result-section">
+                            <h3><span class="section-icon material-symbols-outlined">palette</span>Цветовая палитра</h3>
+                            <div class="color-palette" id="colorPalette">
+                                <!-- Colors will be injected here -->
+                            </div>
+                            <div class="color-stats">
+                                <span id="colorStats"></span>
+                            </div>
+                        </div>
+
+                        <!-- Typography -->
+                        <div class="result-section">
+                            <h3><span class="section-icon material-symbols-outlined">format_size</span>Типографика</h3>
+                            <div class="typography-section" id="typographySection">
+                                <!-- Typography will be injected here -->
+                            </div>
+                        </div>
+
+                        <!-- Layout -->
+                        <div class="result-section">
+                            <h3><span class="section-icon material-symbols-outlined">format_size</span>Композиционный анализ</h3>
+                            <div class="layout-section" id="layoutSectionWrapper">
+                                <!-- Layout will be injected here -->
+                                <div class="layout-content">
+                                    <div class="layout-raw">
+                                      <h3>Секции страницы</h3>
+                                      <div id="layoutSections"></div>
+                                    </div>
+                                  </div>
+                            </div>
+                        </div>
+
+
+                        <!-- Design Tokens -->
+                        <div class="result-section">
+                            <h3><span class="section-icon material-symbols-outlined">token</span>Дизайн-токены</h3>
+                            <div class="tokens-section">
+                                <div class="tokens-grid">
+                                    <div class="token-category">
+                                        <h4>Цвета</h4>
+                                        <pre id="colorTokens" class="code-block"></pre>
+                                    </div>
+                                    <div class="token-category">
+                                        <h4>Типографика</h4>
+                                        <pre id="typographyTokens" class="code-block"></pre>
+                                    </div>
+                                    <div class="token-category">
+                                        <h4>Композиция</h4>
+                                        <pre id="layoutTokens" class="code-block"></pre>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="actions-section">
+                            <button class="btn-secondary" id="exportBtn"><span class="material-symbols-outlined">download</span>Экспорт дизайн-системы</button>
+                            <button class="btn-secondary" id="analyzeAnotherBtn"><span class="material-symbols-outlined">refresh</span>Анализировать другой сайт</button>
+                        </div>
+                    </div>
+
+                    <!-- Error State -->
+                    <div id="errorState" class="error-state" style="display: none;">
+                        <div class="error-icon material-symbols-outlined">error</div>
+                        <h3>Ошибка анализа</h3>
+                        <p id="errorMessage"></p>
+                        <button class="btn-secondary" id="retryBtn"><span class="material-symbols-outlined">replay</span>Попробовать снова</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Synthesis Section -->
+            <section id="synthesisSection" class="synthesis-section" style="display: none;">
+                <div class="card">
+                    <div class="synthesis-header">
+                        <h2>
+                            <span class="section-icon material-symbols-outlined">web</span>
+                            Синтезированный сайт
+                        </h2>
+                        <div class="synthesis-controls">
+                            <select id="templateSelect" class="template-select">
+                                <option value="corporate">Корпоративный</option>
+                                <option value="startup">Стартап</option>
+                                <option value="portfolio">Портфолио</option>
+                                <option value="minimal">Минималистичный</option>
+                            </select>
+                            <button class="btn-secondary" id="generateSiteBtn"><span class="material-symbols-outlined">refresh</span>Обновить</button>
+                            <button class="btn-secondary" id="downloadSiteBtn"><span class="material-symbols-outlined">download</span>Скачать HTML</button>
+                        </div>
+                    </div>
+                    
+                    <div class="synthesis-preview">
+                        <div class="preview-controls">
+                            <button class="preview-btn active" data-device="desktop"><span class="device-icon material-symbols-outlined">desktop_windows</span>Десктоп</button>
+                            <button class="preview-btn" data-device="tablet"><span class="device-icon material-symbols-outlined">tablet_android</span>Планшет</button>
+                            <button class="preview-btn" data-device="mobile"><span class="device-icon material-symbols-outlined">mobile</span>Мобильный</button>
+                        </div>
+                        <div class="preview-container desktop">
+                            <iframe id="sitePreview" class="site-preview" style="width: 100%; height: 1000px; border: 1px solid #e2e8f0; border-radius: 8px;"></iframe>
+                        </div>
+                    </div>
+                    
+                    <div class="synthesis-info">
+                        <h3>Информация о синтезированном сайте</h3>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <span class="info-label">Шаблон:</span>
+                                <span id="currentTemplate" class="info-value">Корпоративный</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Цветовая схема:</span>
+                                <span id="colorScheme" class="info-value">На основе анализа</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Типографика:</span>
+                                <span id="typographyInfo" class="info-value">Адаптивная</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Для отображения истории -->
+            <section class="history-section">
+                <div class="card">
+                    <div class="history-header">
+                        <h2>
+                            <span class="section-icon material-symbols-outlined">history</span>
+                            История анализов</h2>
+                        <button class="btn-clear" id="clearHistoryBtn">
+                            <span class="material-symbols-outlined">delete</span>
+                            Очистить историю</button>
+                    </div>
+                    <div id="historyContent" class="history-content">
+                        <div class="history-empty" id="historyEmpty">
+                            <p>История анализов пуста</p>
+                            <p class="empty-subtitle">Проанализированные сайты появятся здесь</p>
+                        </div>
+                        <div id="historyList" class="history-list" style="display: none;">
+                            <!-- История будет здесь -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Auto UI Design System Analyzer | Дипломная работа</p>
+        </footer>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

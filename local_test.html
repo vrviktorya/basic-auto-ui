@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Color Test Page</title>
+    <style>
+        :root {
+            --primary: #3498db;
+            --secondary: #2ecc71; 
+            --accent: #e74c3c;
+            --background: #f8f9fa;
+            --text: #2c3e50;
+        }
+        
+        body {
+            background-color: var(--background);
+            color: var(--text);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, var(--primary), #2980b9);
+            color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+        }
+        
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .color-card {
+            padding: 1.5rem;
+            border-radius: 8px;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+        }
+        
+        .card-1 { background-color: var(--primary); }
+        .card-2 { background-color: var(--secondary); }
+        .card-3 { background-color: var(--accent); }
+        .card-4 { background-color: #f1c40f; }
+        .card-5 { background-color: #9b59b6; }
+        .card-6 { background-color: #1abc9c; }
+        
+        .button {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 0.5rem;
+        }
+        
+        .button:hover {
+            background-color: #c0392b;
+        }
+        
+        .secondary-button {
+            background-color: var(--secondary);
+        }
+        
+        .secondary-button:hover {
+            background-color: #27ae60;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎨 Тестовая страница для извлечения цветов</h1>
+        <p>Эта страница содержит разнообразные цвета для тестирования парсера</p>
+    </div>
+    
+    <div class="color-grid">
+        <div class="color-card card-1">Основной цвет (#3498db)</div>
+        <div class="color-card card-2">Вторичный цвет (#2ecc71)</div>
+        <div class="color-card card-3">Акцентный цвет (#e74c3c)</div>
+        <div class="color-card card-4">Желтый (#f1c40f)</div>
+        <div class="color-card card-5">Фиолетовый (#9b59b6)</div>
+        <div class="color-card card-6">Бирюзовый (#1abc9c)</div>
+    </div>
+    
+    <div>
+        <button class="button">Основная кнопка</button>
+        <button class="button secondary-button">Вторичная кнопка</button>
+    </div>
+    
+    <div style="margin-top: 2rem; padding: 1rem; background-color: #ecf0f1; border-radius: 6px;">
+        <h3 style="color: #34495e;">Текстовые элементы</h3>
+        <p style="color: #7f8c8d;">Это текст серого цвета</p>
+        <a href="#" style="color: #3498db; text-decoration: none;">Это ссылка</a>
+    </div>
+</body>
+</html>
