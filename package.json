@@ -1,26 +1,23 @@
 {
-  "name": "auto-ui",
+  "name": "basic-auto-ui",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Система автоматического синтеза веб-интерфейсов на основе кросс-референсного анализа",
+  "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js",
-    "analyze": "node improved_analyzer.js"
+    "start": "node server/server-auto-port.js",
+    "dev": "node server/server-auto-port.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
+  "keywords": ["design-system", "analysis", "synthesis", "ui", "automation"],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "chroma-js": "^2.6.0",
     "color-convert": "^3.1.3",
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "helmet": "^7.1.0",
-    "jszip": "^3.10.1",
     "morgan": "^1.10.0",
-    "multer": "^2.0.2",
-    "node-kmeans": "^1.1.9",
-    "puppeteer": "^21.11.0",
-    "rgb-lab": "^1.0.0"
+    "puppeteer": "^21.11.0"
   }
 }

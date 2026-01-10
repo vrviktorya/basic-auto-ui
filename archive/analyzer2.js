@@ -1,6 +1,8 @@
 const puppeteer = require('puppeteer');
-const BasicColorExtractor = require('./colors/basicColorExtractor');
-const UltraSimpleColorAnalyzer = require('./colors/ultrasimpleColorAnalyzer');
+const BasicColorExtractor = require('../basicColorExtractor');
+const UltraSimpleColorAnalyzer = require('../ultrasimpleColorAnalyzer');
+//const HybridColorAnalyzer = require('./hybridColorAnalyzer'); // ЗАМЕНЯЕМ
+//const EnhancedColorExtractor = require('./enhancedColorExtractor'); // Новый извлекатель
 
 async function analyzeDesignSystem(url) {
     let browser;

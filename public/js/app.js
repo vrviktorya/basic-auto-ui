@@ -322,10 +322,7 @@ class DesignSystemAnalyzer {
         // Отображаем данные
         this.renderColorPalette(data.colors);
         this.renderTypography(data.typography);
-        this.renderLayout(data.layout, data.layoutTokens);   // НОВОЕ
         this.renderDesignTokens(data);
-
-
         
         // Автоматически генерируем сайт после анализа
         this.generateSite();
@@ -440,49 +437,6 @@ class DesignSystemAnalyzer {
         
         container.appendChild(grid);
     }
-
-    renderLayout(layout, layoutTokens) {
-        const sectionsContainer = document.getElementById('layoutSections');
-        const tokensContainer = document.getElementById('layoutTokens');
-    
-        if (!sectionsContainer || !tokensContainer) return;
-    
-        sectionsContainer.innerHTML = '';
-    
-        if (!layout || !layout.sections || layout.sections.length === 0) {
-            sectionsContainer.innerHTML = '<p>Layout-секции не обнаружены.</p>';
-        } else {
-            layout.sections.forEach(section => {
-                const div = document.createElement('div');
-                div.className = 'layout-section-item';
-    
-                const type = section.type || 'generic';
-                const tag = section.tag || 'div';
-                const className = section.className || '';
-    
-                div.innerHTML = `
-                    <div><strong>${section.index + 1}. ${tag.toUpperCase()}</strong> (${type})</div>
-                    <div class="layout-section-meta">
-                        <span class="layout-badge">display: ${section.display}</span>
-                        ${section.flexDirection ? `<span class="layout-badge">flex-dir: ${section.flexDirection}</span>` : ''}
-                        ${section.gridTemplateColumns ? `<span class="layout-badge">grid: ${section.gridTemplateColumns}</span>` : ''}
-                        ${section.maxWidthPx ? `<span class="layout-badge">max-width: ${Math.round(section.maxWidthPx)}px</span>` : ''}
-                        ${section.paddingY ? `<span class="layout-badge">paddingY: ${Math.round(section.paddingY)}px</span>` : ''}
-                        ${section.childrenCount ? `<span class="layout-badge">children: ${section.childrenCount}</span>` : ''}
-                    </div>
-                    ${className ? `<div class="layout-section-classes">${className}</div>` : ''}
-                `;
-    
-                sectionsContainer.appendChild(div);
-            });
-        }
-    
-        // Токены выводим JSONом, чтобы быстро проверять, что реально приходит с сервера
-        tokensContainer.textContent = layoutTokens
-            ? JSON.stringify(layoutTokens, null, 2)
-            : '// layoutTokens не были сгенерированы';
-    }
-    
 
     renderDesignTokens(data) {
         // Генерируем CSS токены
