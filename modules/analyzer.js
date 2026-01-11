@@ -1,6 +1,8 @@
+// modules/analyzer.js
 const puppeteer = require('puppeteer');
 const BasicColorExtractor = require('./colors/basicColorExtractor');
 const UltraSimpleColorAnalyzer = require('./colors/ultrasimpleColorAnalyzer');
+const ButtonAnalyzer = require('./components/buttonAnalyzer');
 
 async function analyzeDesignSystem(url) {
     let browser;
@@ -43,6 +45,26 @@ async function analyzeDesignSystem(url) {
         console.log('✅ Page loaded successfully');
 
         // Ждем загрузки контента
+        await page.waitForTimeout(3000);
+        
+        // Прокручиваем страницу для загрузки ленивых элементов
+        await page.evaluate(async () => {
+            await new Promise(resolve => {
+                let totalHeight = 0;
+                const distance = 100;
+                const timer = setInterval(() => {
+                    const scrollHeight = document.body.scrollHeight;
+                    window.scrollBy(0, distance);
+                    totalHeight += distance;
+                    
+                    if (totalHeight >= scrollHeight) {
+                        clearInterval(timer);
+                        resolve();
+                    }
+                }, 100);
+            });
+        });
+        
         await page.waitForTimeout(2000);
 
         // Извлекаем цвета
@@ -63,6 +85,36 @@ async function analyzeDesignSystem(url) {
         console.log('📝 Analyzing typography...');
         const typography = await extractTypography(page);
 
+        // Анализ кнопок
+        console.log('🔄 Extracting buttons...');
+        const buttonAnalyzer = new ButtonAnalyzer();
+        const rawButtons = await buttonAnalyzer.extractButtons(page);
+        
+        console.log(`📊 Found ${rawButtons.length} button-like elements`);
+        
+        let buttonClusters = {};
+        
+        if (rawButtons.length > 0) {
+            buttonClusters = buttonAnalyzer.clusterButtons(rawButtons);
+            
+            // Выводим информацию о найденных кнопках
+            console.log('📋 Button clusters:');
+            Object.entries(buttonClusters).forEach(([type, button]) => {
+                if (button) {
+                    console.log(`  ${type}: ${button.text || 'no text'} (${button.styles.backgroundColor || 'no bg'})`);
+                }
+            });
+        } else {
+            console.log('ℹ️ No buttons found, using default styles');
+            buttonClusters = {
+                primary: null,
+                secondary: null,
+                outline: null,
+                text: null,
+                icon: null
+            };
+        }
+
         return {
             url,
             domain: new URL(url).hostname,
@@ -71,8 +123,14 @@ async function analyzeDesignSystem(url) {
                 total: typography.length,
                 styles: typography
             },
+            buttons: {
+                total: rawButtons.length,
+                found: rawButtons.length > 0,
+                clusters: buttonClusters,
+                samples: rawButtons.slice(0, 5)
+            },
             timestamp: new Date().toISOString(),
-            analysisVersion: 'stable-v1'
+            analysisVersion: 'stable-v2'
         };
 
     } catch (error) {
@@ -112,7 +170,7 @@ async function extractTypography(page) {
                     }
                 }
             } catch (e) {
-                // Ignore errors
+                // Игнорируем ошибки
             }
         });
         

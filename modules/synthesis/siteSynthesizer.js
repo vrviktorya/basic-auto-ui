@@ -1,3 +1,4 @@
+// modules/synthesis/siteSynthesizer.js
 class SiteSynthesizer {
     constructor() {
         this.templates = {
@@ -8,16 +9,18 @@ class SiteSynthesizer {
         };
     }
 
-    /* Основной метод для генерации сайта */
     generateSite(designSystem, templateType = 'corporate') {
         const template = this.templates[templateType] || this.templates.corporate;
         return template(designSystem);
     }
 
-    /* Корпоративный шаблон (подходит для банков, IT-компаний) */
     generateCorporateTemplate(designSystem) {
         const colors = this.normalizeColors(designSystem.colors.palette);
         const typography = this.normalizeTypography(designSystem.typography.styles);
+        const buttons = designSystem.buttons;
+        
+        // Получаем CSS для кнопок
+        const buttonCSS = this.generateButtonCSS(buttons);
         
         return `
 <!DOCTYPE html>
@@ -26,105 +29,303 @@ class SiteSynthesizer {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${designSystem.domain || 'Синтезированный сайт'}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
     <style>
-        ${this.generateGlobalCSS(colors, typography)}
-        ${this.generateCorporateCSS(colors, typography)}
+        /* Global styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: ${typography.body?.fontFamily || 'Inter, sans-serif'};
+            line-height: 1.6;
+            color: ${colors.text || '#333333'};
+            background: ${colors.background || '#ffffff'};
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        /* Button styles */
+        ${buttonCSS}
+        
+        /* Header */
+        .header {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            z-index: 1000;
+            background: ${colors.background || '#ffffff'};
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 1rem 0;
+        }
+        
+        .nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
+        
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: ${colors.primary || '#333333'};
+        }
+        
+        .nav-menu {
+            display: flex;
+            list-style: none;
+            gap: 2rem;
+        }
+        
+        .nav-menu a {
+            color: ${colors.text || '#333333'};
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+        
+        .nav-menu a:hover {
+            color: ${colors.primary || '#007bff'};
+        }
+        
+        /* Hero Section */
+        .hero {
+            min-height: 80vh;
+            display: flex;
+            align-items: center;
+            padding: 100px 2rem 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+            gap: 3rem;
+            background: ${colors.surface || colors.background || '#f8f9fa'};
+        }
+        
+        .hero-content {
+            flex: 1;
+        }
+        
+        .hero h1 {
+            font-size: ${typography.h1?.fontSize || '3rem'};
+            font-weight: ${typography.h1?.fontWeight || 'bold'};
+            color: ${colors.text || '#333333'};
+            margin-bottom: 1.5rem;
+            line-height: 1.2;
+        }
+        
+        .hero p {
+            font-size: ${typography.p?.fontSize || '1.2rem'};
+            color: ${colors.text || '#666666'};
+            margin-bottom: 2rem;
+            max-width: 600px;
+        }
+        
+        .hero-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        
+        /* Footer */
+        .footer {
+            padding: 2rem 0;
+            background: ${colors.surface || '#343a40'};
+            color: ${colors.text || '#ffffff'};
+            text-align: center;
+        }
     </style>
 </head>
 <body>
     <!-- Header -->
-    <header class="header" style="background: ${colors.background || '#ffffff'}">
+    <header class="header">
         <nav class="nav">
-            <div class="logo" style="color: ${colors.primary || '#333333'}">
+            <div class="logo">
                 ${this.extractBrandName(designSystem.domain) || 'Brand'}
             </div>
             <ul class="nav-menu">
-                <li><a href="#home" style="color: ${colors.text || '#333333'}">Главная</a></li>
-                <li><a href="#about" style="color: ${colors.text || '#333333'}">О нас</a></li>
-                <li><a href="#services" style="color: ${colors.text || '#333333'}">Услуги</a></li>
-                <li><a href="#contact" style="color: ${colors.text || '#333333'}">Контакты</a></li>
+                <li><a href="#home">Главная</a></li>
+                <li><a href="#about">О нас</a></li>
+                <li><a href="#services">Услуги</a></li>
+                <li><a href="#contact">Контакты</a></li>
             </ul>
-            <button class="cta-button" style="background: ${colors.accent || colors.primary || '#007bff'}; color: ${this.getContrastColor(colors.accent || colors.primary || '#007bff')}">
-                Связаться
-            </button>
+            <button class="cta-button">Связаться</button>
         </nav>
     </header>
 
     <!-- Hero Section -->
-    <section id="home" class="hero" style="background: ${colors.surface || colors.background || '#f8f9fa'}">
+    <section class="hero">
         <div class="hero-content">
-            <h1 style="color: ${colors.text || '#333333'}; font-family: ${typography.h1?.fontFamily || 'inherit'}">
-                Добро пожаловать в нашу компанию
-            </h1>
-            <p style="color: ${colors.text || '#666666'}; font-family: ${typography.p?.fontFamily || 'inherit'}">
-                Мы предоставляем лучшие решения для вашего бизнеса с инновационным подходом и профессиональной командой.
-            </p>
+            <h1>Добро пожаловать в ${this.extractBrandName(designSystem.domain) || 'нашу компанию'}</h1>
+            <p>Мы предоставляем лучшие решения для вашего бизнеса с инновационным подходом и профессиональной командой.</p>
             <div class="hero-buttons">
-                <button class="btn-primary" style="background: ${colors.primary || colors.accent || '#007bff'}; color: ${this.getContrastColor(colors.primary || colors.accent || '#007bff')}">
-                    Начать работу
-                </button>
-                <button class="btn-secondary" style="border-color: ${colors.primary || '#007bff'}; color: ${colors.primary || '#007bff'}">
-                    Узнать больше
-                </button>
-            </div>
-        </div>
-        <div class="hero-visual">
-            <div class="placeholder-visual" style="background: ${colors.secondary || '#e9ecef'}; border: 2px dashed ${colors.border || '#dee2e6'}">
-                Визуальный элемент
-            </div>
-        </div>
-    </section>
-
-    <!-- Features Section -->
-    <section id="about" class="features" style="background: ${colors.background || '#ffffff'}">
-        <div class="container">
-            <h2 style="color: ${colors.text || '#333333'}; text-align: center;">Наши преимущества</h2>
-            <div class="features-grid">
-                ${this.generateFeatureCards(colors, typography, 3)}
-            </div>
-        </div>
-    </section>
-
-    <!-- Services Section -->
-    <section id="services" class="services" style="background: ${colors.surface || '#f8f9fa'}">
-        <div class="container">
-            <h2 style="color: ${colors.text || '#333333'}; text-align: center;">Наши услуги</h2>
-            <div class="services-grid">
-                ${this.generateServiceCards(colors, typography, 4)}
-            </div>
-        </div>
-    </section>
-
-    <!-- Contact Section -->
-    <section id="contact" class="contact" style="background: ${colors.background || '#ffffff'}">
-        <div class="container">
-            <h2 style="color: ${colors.text || '#333333'}; text-align: center;">Свяжитесь с нами</h2>
-            <div class="contact-content">
-                <div class="contact-info">
-                    <h3 style="color: ${colors.primary || '#007bff'}">Контактная информация</h3>
-                    <p style="color: ${colors.text || '#666666'}">Email: info@example.com</p>
-                    <p style="color: ${colors.text || '#666666'}">Телефон: +7 (999) 999-99-99</p>
-                </div>
-                <form class="contact-form" style="background: ${colors.surface || '#f8f9fa'}">
-                    <input type="text" placeholder="Ваше имя" style="border: 1px solid ${colors.border || '#dee2e6'}">
-                    <input type="email" placeholder="Ваш email" style="border: 1px solid ${colors.border || '#dee2e6'}">
-                    <textarea placeholder="Ваше сообщение" style="border: 1px solid ${colors.border || '#dee2e6'}"></textarea>
-                    <button type="submit" style="background: ${colors.accent || colors.primary || '#007bff'}; color: ${this.getContrastColor(colors.accent || colors.primary || '#007bff')}">
-                        Отправить
-                    </button>
-                </form>
+                <button class="btn-primary">Начать работу</button>
+                <button class="btn-secondary">Узнать больше</button>
             </div>
         </div>
     </section>
 
     <!-- Footer -->
-    <footer class="footer" style="background: ${colors.surface || '#343a40'}; color: ${colors.text || '#ffffff'}">
+    <footer class="footer">
         <div class="container">
             <p>&copy; 2024 ${this.extractBrandName(designSystem.domain) || 'Company'}. Все права защищены.</p>
         </div>
     </footer>
 </body>
 </html>`;
+    }
+
+    generateButtonCSS(buttons) {
+        // Если нет кнопок, возвращаем базовые стили
+        if (!buttons || !buttons.found) {
+            return this.generateDefaultButtonCSS();
+        }
+        
+        let css = '/* Button styles */\n\n';
+        
+        // Primary button
+        const primaryBtn = buttons.clusters.primary;
+        if (primaryBtn && primaryBtn.styles) {
+            const s = primaryBtn.styles;
+            css += `.btn-primary, .cta-button {\n`;
+            css += `  background: ${s.backgroundColor || '#007bff'};\n`;
+            css += `  color: ${s.color || '#ffffff'};\n`;
+            if (s.borderWidth && s.borderWidth !== '0px') {
+                css += `  border: ${s.borderWidth} ${s.borderStyle || 'solid'} ${s.borderColor || s.backgroundColor || '#007bff'};\n`;
+            } else {
+                css += `  border: none;\n`;
+            }
+            css += `  border-radius: ${s.borderRadius || '6px'};\n`;
+            css += `  padding: ${s.padding?.top || '12px'} ${s.padding?.right || '24px'} ${s.padding?.bottom || '12px'} ${s.padding?.left || '24px'};\n`;
+            css += `  font-family: ${s.fontFamily || 'inherit'};\n`;
+            css += `  font-size: ${s.fontSize || '1rem'};\n`;
+            css += `  font-weight: ${s.fontWeight || '500'};\n`;
+            if (s.boxShadow && s.boxShadow !== 'none') css += `  box-shadow: ${s.boxShadow};\n`;
+            css += `  transition: ${s.transition || 'all 0.3s ease'};\n`;
+            css += `  cursor: ${s.cursor || 'pointer'};\n`;
+            css += `}\n\n`;
+            
+            css += `.btn-primary:hover, .cta-button:hover {\n`;
+            css += `  opacity: 0.9;\n`;
+            css += `  transform: translateY(-2px);\n`;
+            css += `}\n\n`;
+        } else {
+            css += this.generateDefaultButtonCSS('primary');
+        }
+        
+        // Secondary button
+        const secondaryBtn = buttons.clusters.secondary || buttons.clusters.outline;
+        if (secondaryBtn && secondaryBtn.styles) {
+            const s = secondaryBtn.styles;
+            css += `.btn-secondary {\n`;
+            css += `  background: ${s.backgroundColor || 'transparent'};\n`;
+            css += `  color: ${s.color || '#007bff'};\n`;
+            if (s.borderWidth && s.borderWidth !== '0px') {
+                css += `  border: ${s.borderWidth} ${s.borderStyle || 'solid'} ${s.borderColor || '#007bff'};\n`;
+            } else {
+                css += `  border: 2px solid ${s.color || '#007bff'};\n`;
+            }
+            css += `  border-radius: ${s.borderRadius || '6px'};\n`;
+            css += `  padding: ${s.padding?.top || '10px'} ${s.padding?.right || '20px'} ${s.padding?.bottom || '10px'} ${s.padding?.left || '20px'};\n`;
+            css += `  font-family: ${s.fontFamily || 'inherit'};\n`;
+            css += `  font-size: ${s.fontSize || '1rem'};\n`;
+            css += `  font-weight: ${s.fontWeight || '500'};\n`;
+            css += `  transition: ${s.transition || 'all 0.3s ease'};\n`;
+            css += `  cursor: ${s.cursor || 'pointer'};\n`;
+            css += `}\n\n`;
+            
+            css += `.btn-secondary:hover {\n`;
+            css += `  background: ${s.backgroundColor === 'transparent' ? 'rgba(0,0,0,0.05)' : 'rgba(0,0,0,0.1)'};\n`;
+            css += `}\n`;
+        } else {
+            css += this.generateDefaultButtonCSS('secondary');
+        }
+        
+        return css;
+    }
+    
+    generateDefaultButtonCSS(type = 'all') {
+        if (type === 'primary' || type === 'all') {
+            return `.btn-primary, .cta-button {
+    background: #007bff;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 12px 24px;
+    font-size: 1rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    display: inline-block;
+}
+
+.btn-primary:hover, .cta-button:hover {
+    background: #0056b3;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}\n\n`;
+        }
+        
+        if (type === 'secondary' || type === 'all') {
+            return `.btn-secondary {
+    background: transparent;
+    color: #007bff;
+    border: 2px solid #007bff;
+    border-radius: 6px;
+    padding: 10px 20px;
+    font-size: 1rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.btn-secondary:hover {
+    background: rgba(0, 123, 255, 0.1);
+}\n`;
+        }
+        
+        return '';
+    }
+
+    generateButtonHTML(buttons, className, text, buttonType = 'primary') {
+        if (!buttons || !buttons.clusters || !buttons.clusters[buttonType]) {
+            return `<button class="${className}">${text}</button>`;
+        }
+        
+        const buttonData = buttons.clusters[buttonType];
+        const hasIcon = buttonData.hasIcon;
+        
+        if (hasIcon) {
+            return `<button class="${className}">
+        <span class="material-symbols-outlined">arrow_forward</span>
+        ${text}
+    </button>`;
+        } else {
+            return `<button class="${className}">${text}</button>`;
+        }
+    }
+    
+    // Также добавьте этот метод в класс (для кнопок с иконками):
+    generateIconButtonHTML(buttons, className, text, icon, buttonType = 'primary') {
+        if (!buttons || !buttons.clusters || !buttons.clusters[buttonType]) {
+            return `<button class="${className}">
+        <span class="material-symbols-outlined">${icon}</span>
+        ${text}
+    </button>`;
+        }
+        
+        return `<button class="${className}">
+        <span class="material-symbols-outlined">${icon}</span>
+        ${text}
+    </button>`;
     }
 
     /* Генерация глобальных CSS-стилей */
