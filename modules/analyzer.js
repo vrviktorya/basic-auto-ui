@@ -144,25 +144,43 @@ async function analyzeDesignSystem(url) {
 }
 
 async function extractTypography(page) {
-    return await page.evaluate(() => {
+    console.log('📝 Starting detailed typography extraction...');
+    
+    const result = await page.evaluate(() => {
         const fonts = new Map();
-        const elements = document.querySelectorAll('h1, h2, h3, h4, h5, h6, p, span, a, button, li, div');
+        const elements = document.querySelectorAll('*');
+        
+        console.log(`📝 Scanning ${elements.length} elements for fonts...`);
         
         elements.forEach(element => {
             try {
                 const style = window.getComputedStyle(element);
                 const text = element.textContent.trim();
                 
-                if (text && text.length > 0 && text.length < 100) {
+                if (text && text.length > 0 && text.length < 200) {
                     const fontData = {
                         fontSize: style.fontSize,
-                        fontFamily: style.fontFamily.split(',')[0].replace(/['"]/g, ''),
+                        fontFamily: style.fontFamily,
                         fontWeight: style.fontWeight,
                         lineHeight: style.lineHeight,
                         color: style.color,
                         tag: element.tagName.toLowerCase(),
                         example: text.substring(0, 50)
                     };
+                    
+                    // ОЧЕНЬ ВАЖНО: Очищаем название шрифта
+                    if (fontData.fontFamily) {
+                        // Берем первый шрифт из списка, убираем кавычки
+                        const cleanedFont = fontData.fontFamily.split(',')[0]
+                            .replace(/['"]/g, '')
+                            .trim();
+                        fontData.fontFamily = cleanedFont;
+                        
+                        // Логируем заголовки
+                        if (['h1', 'h2', 'h3'].includes(fontData.tag.toLowerCase())) {
+                            console.log(`🎯 Found heading ${fontData.tag}: ${cleanedFont} ${fontData.fontSize}`);
+                        }
+                    }
                     
                     const key = `${fontData.fontFamily}-${fontData.fontSize}-${fontData.fontWeight}`;
                     if (!fonts.has(key)) {
@@ -174,8 +192,17 @@ async function extractTypography(page) {
             }
         });
         
+        console.log(`📝 Extracted ${fonts.size} unique font styles`);
+        // Выводим первые 5 найденных шрифтов
+        Array.from(fonts.values()).slice(0, 5).forEach((font, i) => {
+            console.log(`  ${i+1}. ${font.tag}: ${font.fontFamily} ${font.fontSize}`);
+        });
+        
         return Array.from(fonts.values());
     });
+    
+    console.log(`✅ Typography extraction completed: ${result.length} styles`);
+    return result;
 }
 
 module.exports = analyzeDesignSystem;

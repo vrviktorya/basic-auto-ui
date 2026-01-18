@@ -30,9 +30,9 @@ class ButtonAnalyzer {
                 const reasonableSize = rect.width >= 40 && rect.height >= 20 && rect.width <= 500;
                 
                 // Текстовые признаки кнопки
-                const buttonTexts = ['купить', 'заказать', 'отправить', 'подробнее', 'скачать', 'узнать', 
+                const buttonTexts = ['купить', 'заказать', 'отправить', 'подробнее', 'скачать', 'узнать', 'подключить', 'перейти', 'связаться', 'открыть', 'далее', 'получить', 'оформить', 'посмотреть', 'забронировать',
                                    'начать', 'войти', 'регистрация', 'contact', 'submit', 'send', 
-                                   'download', 'learn', 'get', 'try', 'shop', 'buy'];
+                                   'download', 'learn', 'get', 'try', 'shop', 'buy', 'read', 'open'];
                 const hasButtonText = buttonTexts.some(btnText => textLower.includes(btnText));
                 
                 // Оценка "кнопочности"
@@ -46,7 +46,7 @@ class ButtonAnalyzer {
                 if (element.hasAttribute('onclick')) score += 2;
                 if (element.hasAttribute('href')) score += 1;
                 
-                return score >= 4;
+                return score >= 3;
             };
             
             const classifyButton = (element, style, text) => {
@@ -72,7 +72,7 @@ class ButtonAnalyzer {
                 if (isTransparent && !hasBorder) return 'text';
                 
                 // По тексту
-                const primaryTexts = ['купить', 'заказать', 'отправить', 'купить сейчас', 'оформить заказ'];
+                const primaryTexts = ['купить', 'заказать', 'отправить', 'купить сейчас', 'оформить', 'связаться', 'открыть', 'далее', 'получить', 'забронировать', 'регистрация', 'submit', 'send', 'buy'];
                 if (primaryTexts.some(t => textLower.includes(t))) return 'primary';
                 
                 return 'primary'; // По умолчанию
@@ -100,7 +100,9 @@ class ButtonAnalyzer {
                 'input[type="submit"]',
                 'input[type="reset"]',
                 '.btn',
+                '.Btn',
                 '.button',
+                '.Button',
                 '[class*="btn"]',
                 '[class*="button"]',
                 '[class*="Button"]',

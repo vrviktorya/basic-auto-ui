@@ -1168,3 +1168,249 @@ div.material-symbols-outlined.section-icon {
         grid-template-columns: 1fr;
     }
 }
+
+/* Стили для секции кнопок */
+.buttons-summary {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+}
+
+.buttons-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin: 1.5rem 0;
+}
+
+.button-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.5rem;
+    background: white;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.button-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+.button-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.button-card-header h4 {
+    margin: 0;
+    color: #2d3748;
+}
+
+.button-type-badge {
+    background: #e2e8f0;
+    color: #4a5568;
+    padding: 4px 8px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.button-preview {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.button-preview:hover {
+    opacity: 0.9;
+    transform: scale(1.02);
+}
+
+.button-details {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+.button-detail {
+    display: flex;
+    justify-content: space-between;
+    margin: 0.5rem 0;
+    font-size: 0.9rem;
+}
+
+.detail-label {
+    color: #718096;
+    font-weight: 500;
+}
+
+.detail-value {
+    color: #2d3748;
+    font-family: monospace;
+    max-width: 60%;
+    text-align: right;
+    word-break: break-all;
+}
+
+.color-value {
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: #f7fafc;
+}
+
+.no-buttons-message {
+    text-align: center;
+    padding: 3rem;
+    color: #a0aec0;
+}
+
+.no-buttons-message .material-symbols-outlined {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.button-samples {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 2px solid #e2e8f0;
+}
+
+.button-samples h4 {
+    color: #2d3748;
+    margin-bottom: 1rem;
+}
+
+.samples-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 24px;
+}
+
+.sample-item {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1rem;
+    min-width: 150px;
+    background: white;
+}
+
+.sample-preview {
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 0.5rem;
+    text-align: center;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sample-info {
+    font-size: 0.8rem;
+    color: #718096;
+}
+
+.sample-classes {
+    font-family: monospace;
+    background: #f7fafc;
+    padding: 2px 4px;
+    border-radius: 4px;
+    margin-top: 4px;
+    word-break: break-all;
+    font-size: 0.7rem;
+}
+
+@media (max-width: 768px) {
+    .buttons-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .samples-grid {
+        flex-direction: column;
+    }
+}
+
+/* Typography Display Styles */
+.typography-summary {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+}
+
+.typography-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1.5rem;
+}
+
+.typography-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.5rem;
+    background: white;
+}
+
+.typography-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.typography-count {
+    background: #667eea;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.typography-sample-card {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    border: 1px solid #edf2f7;
+    border-radius: 8px;
+    background: #fafbfc;
+}
+
+.typography-preview {
+    font-size: 1.1rem;
+    line-height: 1.4;
+    margin-bottom: 0.75rem;
+}
+
+.typography-properties {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.property {
+    display: flex;
+    justify-content: space-between;
+}
+
+.property-label {
+    color: #718096;
+    font-weight: 500;
+}
+
+.property-value {
+    color: #2d3748;
+    font-family: 'Courier New', monospace;
+    max-width: 60%;
+    text-align: right;
+    word-break: break-all;
+}

@@ -322,6 +322,7 @@ class DesignSystemAnalyzer {
         // Отображаем данные
         this.renderColorPalette(data.colors);
         this.renderTypography(data.typography);
+        this.renderButtons(data.buttons);
         this.renderDesignTokens(data);
         
         // Автоматически генерируем сайт после анализа
@@ -410,32 +411,249 @@ class DesignSystemAnalyzer {
             container.innerHTML = '<p>Типографика не найдена</p>';
             return;
         }
-
-        const grid = document.createElement('div');
-        grid.className = 'typography-grid';
+    
+        let html = `
+            <div class="typography-summary">
+                <p>Найдено <strong>${typography.total}</strong> уникальных стилей текста</p>
+            </div>
+            <div class="typography-grid">
+        `;
         
-        // Группируем по тегам для лучшего отображения
-        const groupedStyles = this.groupTypographyByTag(typography.styles);
-        
-        Object.entries(groupedStyles).forEach(([tag, styles]) => {
-            styles.forEach(style => {
-                const item = document.createElement('div');
-                item.className = 'typography-item';
-                
-                item.innerHTML = `
-                    <div class="typography-sample" style="font-size: ${style.fontSize}; font-family: ${style.fontFamily}; font-weight: ${style.fontWeight}; line-height: ${style.lineHeight}; color: ${style.color};">
-                        ${style.example || 'Пример текста с таким стилем'}
-                    </div>
-                    <div class="typography-details">
-                        ${tag.toUpperCase()} | ${style.fontSize} | ${style.fontFamily} | Вес: ${style.fontWeight}
-                    </div>
-                `;
-                
-                grid.appendChild(item);
-            });
+        // Группируем по тегам для лучшего представления
+        const groupedByTag = {};
+        typography.styles.forEach(style => {
+            const tag = style.tag || 'unknown';
+            if (!groupedByTag[tag]) groupedByTag[tag] = [];
+            groupedByTag[tag].push(style);
         });
         
-        container.appendChild(grid);
+        // Создаем карточки для каждого тега
+        Object.entries(groupedByTag).forEach(([tag, styles]) => {
+            html += `
+                <div class="typography-card">
+                    <div class="typography-card-header">
+                        <h4>${tag.toUpperCase()}</h4>
+                        <span class="typography-count">${styles.length} стилей</span>
+                    </div>
+            `;
+            
+            // Показываем до 3 основных стилей для каждого тега
+            styles.slice(0, 3).forEach(style => {
+                const fontSizeNum = parseFloat(style.fontSize);
+                const fontSizeDisplay = fontSizeNum > 10 ? fontSizeNum + 'px' : style.fontSize;
+                
+                html += `
+                    <div class="typography-sample-card">
+                        <div class="typography-preview" style="
+                            font-size: ${style.fontSize};
+                            font-family: ${style.fontFamily};
+                            font-weight: ${style.fontWeight};
+                            line-height: ${style.lineHeight};
+                            color: ${style.color};
+                            letter-spacing: ${style.letterSpacing || 'normal'};
+                            text-transform: ${style.textTransform || 'none'};
+                            padding: 12px;
+                            border-radius: 6px;
+                            background: #f8f9fa;
+                            margin-bottom: 8px;
+                        ">
+                            ${style.example || 'Пример текста'}
+                        </div>
+                        <div class="typography-properties">
+                            <div class="property">
+                                <span class="property-label">Шрифт:</span>
+                                <span class="property-value">${style.fontFamily}</span>
+                            </div>
+                            <div class="property">
+                                <span class="property-label">Размер:</span>
+                                <span class="property-value">${fontSizeDisplay}</span>
+                            </div>
+                            <div class="property">
+                                <span class="property-label">Вес:</span>
+                                <span class="property-value">${style.fontWeight}</span>
+                            </div>
+                            <div class="property">
+                                <span class="property-label">Межстрочный:</span>
+                                <span class="property-value">${style.lineHeight}</span>
+                            </div>
+                            ${style.letterSpacing && style.letterSpacing !== 'normal' ? `
+                            <div class="property">
+                                <span class="property-label">Межбуквенный:</span>
+                                <span class="property-value">${style.letterSpacing}</span>
+                            </div>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += `</div>`;
+        });
+        
+        html += `</div>`;
+        container.innerHTML = html;
+    }
+
+    renderButtons(buttons) {
+        const container = document.getElementById('buttonsSection');
+        if (!container) {
+            // Создаем секцию для кнопок, если её нет
+            const resultsContent = document.getElementById('resultsContent');
+            if (resultsContent) {
+                const buttonSection = document.createElement('div');
+                buttonSection.className = 'result-section';
+                buttonSection.innerHTML = `
+
+                `;
+                resultsContent.appendChild(buttonSection);
+            } else {
+                return;
+            }
+        }
+        
+        const buttonsContainer = document.getElementById('buttonsSection');
+        if (!buttonsContainer) return;
+        
+        buttonsContainer.innerHTML = '';
+        
+        if (!buttons || !buttons.found || buttons.total === 0) {
+            buttonsContainer.innerHTML = `
+                <div class="no-buttons-message">
+                    <span class="material-symbols-outlined">smart_button</span>
+                    <p>Кнопки не найдены на странице</p>
+                    <p class="empty-subtitle">Будут использованы стандартные стили кнопок</p>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = `
+            <div class="buttons-summary">
+                <p>Найдено <strong>${buttons.total}</strong> кнопок и интерактивных элементов</p>
+            </div>
+            <div class="buttons-grid">
+        `;
+        
+        // Отображаем все найденные типы кнопок
+        Object.entries(buttons.clusters).forEach(([type, button]) => {
+            if (button) {
+                const styles = button.styles;
+                const contrastColor = this.getContrastColor(styles.backgroundColor);
+                
+                html += `
+                <div class="button-card" data-type="${type}">
+                    <div class="button-card-header">
+                        <h4>${this.getButtonTypeName(type)}</h4>
+                        <span class="button-type-badge">${type}</span>
+                    </div>
+                    <div class="button-preview" style="
+                        background: ${styles.backgroundColor || 'transparent'};
+                        color: ${styles.color || contrastColor};
+                        border: ${styles.borderWidth} ${styles.borderStyle} ${styles.borderColor || 'transparent'};
+                        border-radius: ${styles.borderRadius || '0'};
+                        padding: ${styles.padding?.top || '0'} ${styles.padding?.right || '0'} ${styles.padding?.bottom || '0'} ${styles.padding?.left || '0'};
+                        font-family: ${styles.fontFamily || 'inherit'};
+                        font-size: ${styles.fontSize || '1rem'};
+                        font-weight: ${styles.fontWeight || 'normal'};
+                        text-align: center;
+                        min-height: 60px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        margin: 1rem 0;
+                        box-shadow: ${styles.boxShadow || 'none'};
+                    ">
+                        ${button.text || this.getButtonTypeName(type)}
+                    </div>
+                    <div class="button-details">
+                        <div class="button-detail">
+                            <span class="detail-label">Текст:</span>
+                            <span class="detail-value">${button.text || '—'}</span>
+                        </div>
+                        <div class="button-detail">
+                            <span class="detail-label">Цвет фона:</span>
+                            <span class="detail-value color-value" style="color: ${styles.backgroundColor}">
+                                ${styles.backgroundColor || '—'}
+                            </span>
+                        </div>
+                        <div class="button-detail">
+                            <span class="detail-label">Цвет текста:</span>
+                            <span class="detail-value color-value" style="color: ${styles.color}">
+                                ${styles.color || '—'}
+                            </span>
+                        </div>
+                        <div class="button-detail">
+                            <span class="detail-label">Скругление:</span>
+                            <span class="detail-value">${styles.borderRadius || '0'}</span>
+                        </div>
+                        <div class="button-detail">
+                            <span class="detail-label">Шрифт:</span>
+                            <span class="detail-value">${styles.fontFamily || '—'}</span>
+                        </div>
+                        <div class="button-detail">
+                            <span class="detail-label">Размер:</span>
+                            <span class="detail-value">${Math.round(button.width)} × ${Math.round(button.height)}px</span>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }
+        });
+        
+        html += `</div>`;
+        
+        // Показываем примеры использования
+        if (buttons.samples && buttons.samples.length > 0) {
+            html += `
+            <div class="button-samples">
+                <h4>Примеры найденных кнопок</h4>
+                <div class="samples-grid">
+            `;
+            
+            buttons.samples.forEach((sample, index) => {
+                if (index < 5) { // Ограничиваем количество
+                    html += `
+                    <div class="sample-item">
+                        <div class="sample-preview" style="
+                            background: ${sample.styles.backgroundColor || 'transparent'};
+                            color: ${sample.styles.color || '#000'};
+                            border: ${sample.styles.borderWidth} ${sample.styles.borderStyle} ${sample.styles.borderColor || 'transparent'};
+                            border-radius: ${sample.styles.borderRadius || '0'};
+                            padding: 8px 12px;
+                            font-size: 0.9rem;
+                        ">
+                            ${sample.text || 'Кнопка'}
+                        </div>
+                        <div class="sample-info">
+                            <div>${sample.tagName}</div>
+                            <div class="sample-classes">${sample.className.substring(0, 30)}</div>
+                        </div>
+                    </div>
+                    `;
+                }
+            });
+            
+            html += `
+                </div>
+            </div>
+            `;
+        }
+        
+        buttonsContainer.innerHTML = html;
+    }
+    
+    getButtonTypeName(type) {
+        const names = {
+            primary: 'Основная кнопка',
+            secondary: 'Вторичная кнопка',
+            outline: 'Контурная кнопка',
+            text: 'Текстовая кнопка',
+            warning: 'Предупреждение',
+            danger: 'Опасное действие',
+            success: 'Успешное действие',
+            info: 'Информационная',
+            default: 'Стандартная кнопка'
+        };
+        return names[type] || type;
     }
 
     renderDesignTokens(data) {
