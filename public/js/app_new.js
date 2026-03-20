@@ -1,0 +1,1263 @@
+class DesignSystemAnalyzer {
+    constructor() {
+        this.initializeEventListeners();
+        this.currentAnalysis = null;
+        this.currentGeneratedSite = null;
+        this.multiUrls = [''];
+    }
+
+    initializeEventListeners() {
+        // Форма анализа
+        document.getElementById('analysisForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.analyzeWebsite();
+        });
+
+        // Быстрые кнопки
+        document.querySelectorAll('.quick-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const url = btn.getAttribute('data-url');
+                document.getElementById('urlInput').value = url;
+                this.analyzeWebsite();
+            });
+        });
+
+        // Кнопки действий
+        document.getElementById('analyzeAnotherBtn')?.addEventListener('click', () => {
+            this.showInputSection();
+        });
+
+        document.getElementById('retryBtn')?.addEventListener('click', () => {
+            this.analyzeWebsite();
+        });
+
+        document.getElementById('exportBtn')?.addEventListener('click', () => {
+            this.exportDesignSystem();
+        });
+
+        // Обработчики для истории
+        document.getElementById('clearHistoryBtn')?.addEventListener('click', () => {
+            this.clearHistory();
+        });
+
+        // Инициализация синтеза
+        this.initSynthesis();
+        
+        // Загрузка истории при старте
+        this.loadHistory();
+
+        this.initializeMultiSiteListeners();
+    }
+
+    // НОВЫЙ МЕТОД: Показ сообщений
+    showMessage(message, type = 'info') {
+        console.log(`[${type}] ${message}`);
+        
+        // Создаем временное уведомление (можно заменить на красивый toast)
+        const messageDiv = document.createElement('div');
+        messageDiv.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            background: ${type === 'error' ? '#f56565' : type === 'success' ? '#48bb78' : '#4299e1'};
+            color: white;
+            border-radius: 6px;
+            z-index: 10000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            font-weight: 500;
+        `;
+        messageDiv.textContent = message;
+        
+        document.body.appendChild(messageDiv);
+        
+        // Автоматическое удаление через 3 секунды
+        setTimeout(() => {
+            if (messageDiv.parentNode) {
+                messageDiv.parentNode.removeChild(messageDiv);
+            }
+        }, 3000);
+    }
+
+    // ОБНОВЛЕННЫЙ МЕТОД: Инициализация синтеза
+    initSynthesis() {
+        const generateBtn = document.getElementById('generateSiteBtn');
+        const downloadBtn = document.getElementById('downloadSiteBtn');
+        const templateSelect = document.getElementById('templateSelect');
+
+        if (generateBtn) {
+            generateBtn.addEventListener('click', () => {
+                this.generateSite();
+            });
+        }
+
+        if (downloadBtn) {
+            downloadBtn.addEventListener('click', () => {
+                this.downloadSite();
+            });
+        }
+
+        if (templateSelect) {
+            templateSelect.addEventListener('change', (e) => {
+                if (this.currentAnalysis) {
+                    this.generateSite();
+                }
+            });
+        }
+
+        // Обработчики для переключения устройств предпросмотра
+        document.querySelectorAll('.preview-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const device = e.target.dataset.device;
+                this.switchPreviewDevice(device);
+            });
+        });
+    }
+
+    // ОБНОВЛЕННЫЙ МЕТОД: Загрузка истории
+    async loadHistory() {
+        try {
+            const response = await fetch('/api/history');
+            const data = await response.json();
+            
+            if (data.success) {
+                this.renderHistory(data.history);
+            }
+        } catch (error) {
+            console.error('Error loading history:', error);
+        }
+    }
+
+    renderHistory(history) {
+        const emptyState = document.getElementById('historyEmpty');
+        const historyList = document.getElementById('historyList');
+        
+        if (!history || history.length === 0) {
+            if (emptyState) emptyState.style.display = 'block';
+            if (historyList) historyList.style.display = 'none';
+            return;
+        }
+        
+        if (emptyState) emptyState.style.display = 'none';
+        if (historyList) {
+            historyList.style.display = 'block';
+            historyList.innerHTML = history.map(item => `
+                <div class="history-item" data-url="${item.url}">
+                    <div class="history-item-info">
+                        <div class="history-item-url">${item.url}</div>
+                        <div class="history-item-meta">
+                            <span>${new Date(item.timestamp).toLocaleString('ru-RU')}</span>
+                            <span>${item.colorCount} цветов</span>
+                            <span>${item.typographyCount} стилей</span>
+                        </div>
+                    </div>
+                    <div class="history-item-colors">
+                        ${item.colors.map(color => `
+                            <div class="history-color" style="background: ${color.hex};" title="${color.hex}"></div>
+                        `).join('')}
+                    </div>
+                    <div class="history-item-actions">
+                        <button class="btn-history analyze" title="Анализировать снова">
+                            <span class="material-symbols-outlined">search</span>
+                        </button>
+                        <button class="btn-history delete" title="Удалить из истории">
+                            <span class="material-symbols-outlined">delete</span>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Обработчики событий для истории
+            historyList.querySelectorAll('.history-item .analyze').forEach((btn, index) => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const url = history[index].url;
+                    document.getElementById('urlInput').value = url;
+                    this.analyzeWebsite();
+                });
+            });
+            
+            historyList.querySelectorAll('.history-item .delete').forEach((btn, index) => {
+                btn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const id = history[index].id;
+                    await this.deleteHistoryItem(id);
+                });
+            });
+            
+            historyList.querySelectorAll('.history-item').forEach((item, index) => {
+                item.addEventListener('click', () => {
+                    const url = history[index].url;
+                    document.getElementById('urlInput').value = url;
+                    this.analyzeWebsite();
+                });
+            });
+        }
+    }
+
+    // Удаление элемента истории
+    async deleteHistoryItem(id) {
+        try {
+            const response = await fetch(`/api/history/${id}`, {
+                method: 'DELETE'
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                this.loadHistory();
+            }
+        } catch (error) {
+            console.error('Error deleting history item:', error);
+        }
+    }
+
+    // Очистка всей истории
+    async clearHistory() {
+        if (!confirm('Вы уверены, что хотите очистить всю историю анализов?')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/history', {
+                method: 'DELETE'
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                this.loadHistory();
+            }
+        } catch (error) {
+            console.error('Error clearing history:', error);
+        }
+    }
+
+    async analyzeWebsite() {
+        const url = document.getElementById('urlInput').value.trim();
+
+        if (!url) {
+            this.showError('Пожалуйста, введите URL сайта');
+            return;
+        }
+
+        // Валидация URL
+        if (!this.isValidUrl(url)) {
+            this.showError('Пожалуйста, введите корректный URL (начинается с http:// или https://)');
+            return;
+        }
+
+        this.showLoadingState(url);
+        
+        try {
+            const response = await fetch('/api/analyze', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    url: url,
+                    analysisType: 'full'
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || data.details || 'Неизвестная ошибка');
+            }
+
+            if (data.success) {
+                this.showResults(data.data, url);
+            } else {
+                throw new Error(data.error || 'Анализ завершился неудачно');
+            }
+
+        } catch (error) {
+            console.error('Analysis error:', error);
+            this.showError(error.message);
+        }
+    }
+
+    isValidUrl(string) {
+        try {
+            new URL(string);
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    showInputSection() {
+        document.getElementById('resultsSection').style.display = 'none';
+        document.getElementById('synthesisSection').style.display = 'none';
+        document.getElementById('urlInput').focus();
+    }
+
+    showLoadingState(url) {
+        document.getElementById('resultsSection').style.display = 'block';
+        document.getElementById('loadingState').style.display = 'block';
+        document.getElementById('resultsContent').style.display = 'none';
+        document.getElementById('errorState').style.display = 'none';
+        document.getElementById('synthesisSection').style.display = 'none';
+        
+        document.getElementById('analysisUrl').textContent = url;
+        document.getElementById('analysisTime').textContent = new Date().toLocaleString('ru-RU');
+        
+        // Блокируем кнопку отправки
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        analyzeBtn.disabled = true;
+        analyzeBtn.querySelector('.btn-text').style.display = 'none';
+        analyzeBtn.querySelector('.btn-loading').style.display = 'inline';
+    }
+
+    showResults(data, url) {
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('resultsContent').style.display = 'block';
+        
+        // Восстанавливаем кнопку
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        analyzeBtn.disabled = false;
+        analyzeBtn.querySelector('.btn-text').style.display = 'flex';
+        analyzeBtn.querySelector('.btn-loading').style.display = 'none';
+
+        // Сохраняем текущий анализ
+        this.currentAnalysis = { data, url };
+
+        // Отображаем данные
+        this.renderColorPalette(data.colors);
+        this.renderTypography(data.typography);
+        this.renderButtons(data.buttons);
+        this.renderDesignTokens(data);
+        
+        // Автоматически генерируем сайт после анализа
+        this.generateSite();
+        
+        // Перезагружаем историю
+        this.loadHistory();
+    }
+
+    showError(message) {
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('resultsContent').style.display = 'none';
+        document.getElementById('errorState').style.display = 'block';
+        document.getElementById('synthesisSection').style.display = 'none';
+        
+        document.getElementById('errorMessage').textContent = message;
+        
+        // Восстанавливаем кнопку
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        analyzeBtn.disabled = false;
+        analyzeBtn.querySelector('.btn-text').style.display = 'inline';
+        analyzeBtn.querySelector('.btn-loading').style.display = 'none';
+    }
+
+    renderColorPalette(colors) {
+        const container = document.getElementById('colorPalette');
+        const stats = document.getElementById('colorStats');
+        
+        if (!container) {
+            console.error('Color palette container not found');
+            return;
+        }
+        
+        container.innerHTML = '';
+        
+        if (!colors || !colors.palette || colors.palette.length === 0) {
+            container.innerHTML = `
+                <div class="no-colors-message">
+                    <span class="material-symbols-outlined">palette</span>
+                    <p>Цвета не найдены</p>
+                    <p class="debug-info">Всего цветовых строк: ${colors?.total || 0}</p>
+                </div>
+            `;
+            if (stats) stats.textContent = 'Цвета не найдены';
+            return;
+        }
+
+        // Статистика
+        if (stats) {
+            stats.textContent = `Найдено ${colors.total} уникальных цветов, сгруппировано в ${colors.palette.length} семантических цветов`;
+        }
+
+        // Отображаем палитру с ролями
+        colors.palette.forEach((color) => {
+            const colorElement = document.createElement('div');
+            colorElement.className = 'color-item';
+            
+            const contrastColor = this.getContrastColor(color.hex);
+            const roleName = color.roleName || 'Дополнительный';
+            
+            colorElement.innerHTML = `
+                <div class="color-preview" style="background: ${color.hex}; color: ${contrastColor};">
+                    ${color.hex}
+                    <div class="color-role-badge">${roleName}</div>
+                </div>
+                <div class="color-info">
+                    <div class="color-role">${roleName}</div>
+                    <div class="color-value">${color.rgb}</div>
+                    <div class="color-value">Яркость: ${Math.round(color.brightness)}</div>
+                    <div class="color-value">Насыщенность: ${color.saturation}%</div>
+                    <div class="color-value">Используется в ${color.count} элементах</div>
+                </div>
+            `;
+            
+            container.appendChild(colorElement);
+        });
+    }
+
+    renderTypography(typography) {
+        const container = document.getElementById('typographySection');
+        if (!container) return;
+        
+        container.innerHTML = '';
+        
+        if (!typography.styles || typography.styles.length === 0) {
+            container.innerHTML = '<p>Типографика не найдена</p>';
+            return;
+        }
+        
+        // Функция для нормализации названия шрифта
+        const normalizeFontForCSS = (fontFamily) => {
+            if (!fontFamily) return 'inherit';
+            
+            // Берем первый шрифт из списка
+            const firstFont = fontFamily.split(',')[0].trim();
+            
+            // Убираем кавычки если есть
+            const cleanFont = firstFont.replace(/['"]/g, '');
+            
+            // Если шрифт содержит пробелы, добавляем кавычки
+            if (cleanFont.includes(' ')) {
+                return `'${cleanFont}'`;
+            }
+            
+            return cleanFont;
+        };
+        
+        // Функция для отображения названия шрифта в тексте
+        const displayFontName = (fontFamily) => {
+            if (!fontFamily) return 'inherit';
+            const firstFont = fontFamily.split(',')[0].trim();
+            return firstFont.replace(/['"]/g, '');
+        };
+        
+        let html = `
+            <div class="typography-summary">
+                <p>Найдено <strong>${typography.total}</strong> уникальных стилей текста</p>
+            </div>
+            <div class="typography-grid">
+        `;
+        
+        // Группируем по тегам для лучшего представления
+        const groupedByTag = {};
+        typography.styles.forEach(style => {
+            const tag = style.tag?.toLowerCase() || 'unknown';
+            if (!groupedByTag[tag]) groupedByTag[tag] = [];
+            groupedByTag[tag].push(style);
+        });
+        
+        // Создаем карточки только для нужных тегов
+        const neededTags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a', 'button'];
+        
+        neededTags.forEach(tag => {
+            const styles = groupedByTag[tag];
+            if (!styles || styles.length === 0) return;
+            
+            html += `
+                <div class="typography-card">
+                    <div class="typography-card-header">
+                        <h4>${tag.toUpperCase()}</h4>
+                        <span class="typography-count">${styles.length} стилей</span>
+                    </div>
+            `;
+            
+            // Показываем до 3 стилей для каждого тега
+            styles.slice(0, 3).forEach(style => {
+                const fontSizeNum = parseFloat(style.fontSize);
+                const fontSizeDisplay = fontSizeNum > 10 ? fontSizeNum + 'px' : style.fontSize;
+                const normalizedFont = normalizeFontForCSS(style.fontFamily);
+                const displayFont = displayFontName(style.fontFamily);
+                
+                html += `
+                    <div class="typography-sample-card">
+                        <div class="typography-preview" style="
+                            font-size: ${style.fontSize};
+                            font-family: ${normalizedFont}, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                            font-weight: ${style.fontWeight};
+                            line-height: ${style.lineHeight};
+                            color: ${style.color};
+                            letter-spacing: ${style.letterSpacing || 'normal'};
+                            text-transform: ${style.textTransform || 'none'};
+                            padding: 12px;
+                            border-radius: 6px;
+                            background: #f8f9fa;
+                            margin-bottom: 8px;
+                        ">
+                            ${style.example || 'Пример текста'}
+                        </div>
+                        <div class="typography-properties">
+                            <div class="property">
+                                <span class="property-label">Шрифт:</span>
+                                <span class="property-value">${displayFont}</span>
+                            </div>
+                            <div class="property">
+                                <span class="property-label">Размер:</span>
+                                <span class="property-value">${fontSizeDisplay}</span>
+                            </div>
+                            <div class="property">
+                                <span class="property-label">Вес:</span>
+                                <span class="property-value">${style.fontWeight}</span>
+                            </div>
+                            <div class="property">
+                                <span class="property-label">Межстрочный:</span>
+                                <span class="property-value">${style.lineHeight}</span>
+                            </div>
+                            ${style.letterSpacing && style.letterSpacing !== 'normal' ? `
+                            <div class="property">
+                                <span class="property-label">Межбуквенный:</span>
+                                <span class="property-value">${style.letterSpacing}</span>
+                            </div>` : ''}
+                            
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += `</div>`;
+        });
+        
+        html += `</div>`;
+        container.innerHTML = html;
+    }
+
+    renderButtons(buttons) {
+        const container = document.getElementById('buttonsSection');
+        if (!container) {
+            // Создаем секцию для кнопок, если её нет
+            const resultsContent = document.getElementById('resultsContent');
+            if (resultsContent) {
+                const buttonSection = document.createElement('div');
+                buttonSection.className = 'result-section';
+                buttonSection.innerHTML = `
+
+                `;
+                resultsContent.appendChild(buttonSection);
+            } else {
+                return;
+            }
+        }
+        
+        const buttonsContainer = document.getElementById('buttonsSection');
+        if (!buttonsContainer) return;
+        
+        buttonsContainer.innerHTML = '';
+        
+        if (!buttons || !buttons.found || buttons.total === 0) {
+            buttonsContainer.innerHTML = `
+                <div class="no-buttons-message">
+                    <span class="material-symbols-outlined">smart_button</span>
+                    <p>Кнопки не найдены на странице</p>
+                    <p class="empty-subtitle">Будут использованы стандартные стили кнопок</p>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = `
+            <div class="buttons-summary">
+                <p>Найдено <strong>${buttons.total}</strong> кнопок и интерактивных элементов</p>
+            </div>
+            <div class="buttons-grid">
+        `;
+        
+        // Отображаем все найденные типы кнопок
+        Object.entries(buttons.clusters).forEach(([type, button]) => {
+            if (button) {
+                const styles = button.styles;
+                const contrastColor = this.getContrastColor(styles.backgroundColor);
+                
+                html += `
+                <div class="button-card" data-type="${type}">
+                    <div class="button-card-header">
+                        <h4>${this.getButtonTypeName(type)}</h4>
+                        <span class="button-type-badge">${type}</span>
+                    </div>
+                    <div class="button-preview" style="
+                        background: ${styles.backgroundColor || 'transparent'};
+                        color: ${styles.color || contrastColor};
+                        border: ${styles.borderWidth} ${styles.borderStyle} ${styles.borderColor || 'transparent'};
+                        border-radius: ${styles.borderRadius || '0'};
+                        padding: ${styles.padding?.top || '0'} ${styles.padding?.right || '0'} ${styles.padding?.bottom || '0'} ${styles.padding?.left || '0'};
+                        font-family: ${styles.fontFamily || 'inherit'};
+                        font-size: ${styles.fontSize || '1rem'};
+                        font-weight: ${styles.fontWeight || 'normal'};
+                        text-align: center;
+                        min-height: 60px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        margin: 1rem 0;
+                        box-shadow: ${styles.boxShadow || 'none'};
+                    ">
+                        ${button.text || this.getButtonTypeName(type)}
+                    </div>
+                    <div class="button-details">
+                        <div class="button-detail">
+                            <span class="detail-label">Текст:</span>
+                            <span class="detail-value">${button.text || '—'}</span>
+                        </div>
+                        <div class="button-detail">
+                            <span class="detail-label">Цвет фона:</span>
+                            <span class="detail-value color-value" style="color: ${styles.backgroundColor}">
+                                ${styles.backgroundColor || '—'}
+                            </span>
+                        </div>
+                        <div class="button-detail">
+                            <span class="detail-label">Цвет текста:</span>
+                            <span class="detail-value color-value" style="color: ${styles.color}">
+                                ${styles.color || '—'}
+                            </span>
+                        </div>
+                        <div class="button-detail">
+                            <span class="detail-label">Скругление:</span>
+                            <span class="detail-value">${styles.borderRadius || '0'}</span>
+                        </div>
+                        <div class="button-detail">
+                            <span class="detail-label">Шрифт:</span>
+                            <span class="detail-value">${styles.fontFamily || '—'}</span>
+                        </div>
+                        <div class="button-detail">
+                            <span class="detail-label">Размер:</span>
+                            <span class="detail-value">${Math.round(button.width)} × ${Math.round(button.height)}px</span>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }
+        });
+        
+        html += `</div>`;
+        
+        // Показываем примеры использования
+        if (buttons.samples && buttons.samples.length > 0) {
+            html += `
+            <div class="button-samples">
+                <h4>Примеры найденных кнопок</h4>
+                <div class="samples-grid">
+            `;
+            
+            buttons.samples.forEach((sample, index) => {
+                if (index < 5) { // Ограничиваем количество
+                    html += `
+                    <div class="sample-item">
+                        <div class="sample-preview" style="
+                            background: ${sample.styles.backgroundColor || 'transparent'};
+                            color: ${sample.styles.color || '#000'};
+                            border: ${sample.styles.borderWidth} ${sample.styles.borderStyle} ${sample.styles.borderColor || 'transparent'};
+                            border-radius: ${sample.styles.borderRadius || '0'};
+                            padding: 8px 12px;
+                            font-size: 0.9rem;
+                        ">
+                            ${sample.text || 'Кнопка'}
+                        </div>
+                        <div class="sample-info">
+                            <div>${sample.tagName}</div>
+                            <div class="sample-classes">${sample.className.substring(0, 30)}</div>
+                        </div>
+                    </div>
+                    `;
+                }
+            });
+            
+            html += `
+                </div>
+            </div>
+            `;
+        }
+        
+        buttonsContainer.innerHTML = html;
+    }
+    
+    getButtonTypeName(type) {
+        const names = {
+            primary: 'Основная кнопка',
+            secondary: 'Вторичная кнопка',
+            outline: 'Контурная кнопка',
+            text: 'Текстовая кнопка',
+            warning: 'Предупреждение',
+            danger: 'Опасное действие',
+            success: 'Успешное действие',
+            info: 'Информационная',
+            default: 'Стандартная кнопка'
+        };
+        return names[type] || type;
+    }
+
+    renderDesignTokens(data) {
+        // Генерируем CSS токены
+        const colorTokens = this.generateColorTokens(data.colors.palette);
+        const typographyTokens = this.generateTypographyTokens(data.typography.styles);
+        
+        const colorTokensElement = document.getElementById('colorTokens');
+        const typographyTokensElement = document.getElementById('typographyTokens');
+        
+        if (colorTokensElement) colorTokensElement.textContent = colorTokens;
+        if (typographyTokensElement) typographyTokensElement.textContent = typographyTokens;
+    }
+
+    groupTypographyByTag(styles) {
+        const groups = {};
+        const neededTags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a', 'button'];
+        
+        // Инициализируем группы
+        neededTags.forEach(tag => {
+            groups[tag] = [];
+        });
+        
+        // Распределяем стили по группам
+        styles.forEach(style => {
+            const tag = style.tag?.toLowerCase();
+            if (neededTags.includes(tag) && groups[tag]) {
+                groups[tag].push(style);
+            }
+        });
+        
+        return groups;
+    }
+
+    determineColorRole(color, index, palette) {
+        const brightness = this.getBrightness(color.hex);
+        
+        if (brightness > 240) return 'Фон';
+        if (brightness < 30) return 'Основной текст';
+        if (index === 0) return 'Основной цвет';
+        if (index === 1) return 'Вторичный цвет';
+        if (brightness > 200) return 'Поверхность';
+        if (this.isAccentColor(color.hex, palette)) return 'Акцентный';
+        return `Цвет ${index + 1}`;
+    }
+
+    isAccentColor(hex, palette) {
+        // Упрощенный расчет контраста
+        const hsl = this.hexToHsl(hex);
+        return hsl.s > 0.5 && hsl.l > 0.3 && hsl.l < 0.7;
+    }
+
+    getBrightness(hex) {
+        const r = parseInt(hex.substr(1, 2), 16);
+        const g = parseInt(hex.substr(3, 2), 16);
+        const b = parseInt(hex.substr(5, 2), 16);
+        return (r * 299 + g * 587 + b * 114) / 1000;
+    }
+
+    getContrastColor(hex) {
+        const brightness = this.getBrightness(hex);
+        return brightness > 128 ? '#000000' : '#FFFFFF';
+    }
+
+    hexToHsl(hex) {
+        // Упрощенное преобразование HEX в HSL
+        const r = parseInt(hex.substr(1, 2), 16) / 255;
+        const g = parseInt(hex.substr(3, 2), 16) / 255;
+        const b = parseInt(hex.substr(5, 2), 16) / 255;
+        
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        const l = (max + min) / 2;
+        
+        let h = 0, s = 0;
+        
+        if (max !== min) {
+            const d = max - min;
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            
+            switch (max) {
+                case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                case g: h = (b - r) / d + 2; break;
+                case b: h = (r - g) / d + 4; break;
+            }
+            h /= 6;
+        }
+        
+        return { h: h * 360, s, l };
+    }
+
+    generateColorTokens(palette) {
+        let css = ':root {\n';
+        
+        palette.forEach((color, index) => {
+            const role = this.determineColorRole(color, index, palette).toLowerCase().replace(' ', '-');
+            css += `  --color-${role}: ${color.hex};\n`;
+            css += `  --color-${role}-rgb: ${color.rgb.replace('rgb(', '').replace(')', '')};\n`;
+        });
+        
+        css += '}';
+        return css;
+    }
+
+    generateTypographyTokens(styles) {
+        if (!styles || !styles.length) return '/* Типографика не найдена */';
+        
+        // Группируем стили по тегам и находим наиболее частый шрифт
+        const groupedByTag = {};
+        const fontFamilyCount = {};
+        
+        styles.forEach(style => {
+            const tag = style.tag?.toLowerCase() || 'unknown';
+            if (!groupedByTag[tag]) groupedByTag[tag] = [];
+            groupedByTag[tag].push(style);
+            
+            // Подсчитываем частоту шрифтов
+            if (style.fontFamily) {
+                const font = style.fontFamily.split(',')[0].replace(/['"]/g, '').trim();
+                fontFamilyCount[font] = (fontFamilyCount[font] || 0) + 1;
+            }
+        });
+        
+        // Находим наиболее частый шрифт
+        let mostCommonFont = 'inherit';
+        let maxCount = 0;
+        Object.entries(fontFamilyCount).forEach(([font, count]) => {
+            if (count > maxCount) {
+                maxCount = count;
+                mostCommonFont = font;
+            }
+        });
+        
+        // Определяем базовые стили из тега p или первого найденного
+        const bodyStyles = groupedByTag['p']?.[0] || 
+                          groupedByTag['div']?.[0] || 
+                          groupedByTag['span']?.[0] || 
+                          styles[0];
+        
+        // Базовые переменные
+        let css = ':root {\n';
+        css += `  --font-family-body: "${mostCommonFont}";\n`;
+        
+        css += '\n';
+        
+        // Переменные для конкретных тегов
+        const neededTags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a', 'button'];
+        
+        neededTags.forEach(tag => {
+            const tagStyles = groupedByTag[tag];
+            if (!tagStyles || tagStyles.length === 0) return;
+            
+            const style = tagStyles[0]; // Берем первый стиль для этого тега
+            let fontFamily = style.fontFamily;
+            if (fontFamily) {
+                fontFamily = fontFamily.split(',')[0].replace(/['"]/g, '').trim();
+            }
+            
+            css += `  /* ${tag.toUpperCase()} */\n`;
+            css += `  --${tag}-font-family: "${fontFamily || mostCommonFont}";\n`;
+            css += `  --${tag}-font-size: ${style.fontSize || 'inherit'};\n`;
+            css += `  --${tag}-font-weight: ${style.fontWeight || 'inherit'};\n`;
+            css += `  --${tag}-line-height: ${style.lineHeight || 'inherit'};\n`;
+            if (style.letterSpacing && style.letterSpacing !== 'normal') {
+                css += `  --${tag}-letter-spacing: ${style.letterSpacing};\n`;
+            }
+            if (style.color) {
+                css += `  --${tag}-color: ${style.color};\n`;
+            }
+            css += '\n';
+        });
+        
+        css += '}\n';
+        
+        
+        return css;
+    }
+
+    // Вспомогательный метод для нормализации названия шрифта
+normalizeFontFamily(fontFamily) {
+    if (!fontFamily) return 'inherit';
+    
+    // Берем первый шрифт из списка
+    const firstFont = fontFamily.split(',')[0].trim();
+    
+    // Убираем кавычки если есть
+    return firstFont.replace(/['"]/g, '');
+}
+
+    // МЕТОДЫ СИНТЕЗА САЙТА
+    async generateSite() {
+        if (!this.currentAnalysis) {
+            this.showMessage('Сначала выполните анализ сайта', 'error');
+            return;
+        }
+
+        const templateType = document.getElementById('templateSelect')?.value || 'corporate';
+        
+        try {
+            this.showMessage('Генерируем сайт...', 'info');
+            
+            const response = await fetch('/api/synthesize', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    designSystem: this.currentAnalysis.data,
+                    templateType: templateType
+                })
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showGeneratedSite(data.html, templateType);
+                this.showMessage('Сайт успешно сгенерирован!', 'success');
+            } else {
+                this.showMessage(`Ошибка генерации: ${data.error}`, 'error');
+            }
+        } catch (error) {
+            console.error('Site generation error:', error);
+            this.showMessage('Ошибка при генерации сайта', 'error');
+        }
+    }
+
+    showGeneratedSite(html, templateType) {
+        // Показываем секцию синтеза
+        const synthesisSection = document.getElementById('synthesisSection');
+        if (synthesisSection) {
+            synthesisSection.style.display = 'block';
+            
+            // Прокручиваем к секции синтеза
+            synthesisSection.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        // Обновляем информацию
+        const currentTemplate = document.getElementById('currentTemplate');
+        const colorScheme = document.getElementById('colorScheme');
+        const typographyInfo = document.getElementById('typographyInfo');
+        
+        if (currentTemplate) currentTemplate.textContent = this.getTemplateName(templateType);
+        if (colorScheme) colorScheme.textContent = 'На основе анализа';
+        if (typographyInfo) typographyInfo.textContent = 'Адаптивная';
+        
+        // Загружаем HTML в iframe
+        const preview = document.getElementById('sitePreview');
+        if (preview) {
+            const blob = new Blob([html], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            preview.src = url;
+            this.currentGeneratedSite = html;
+        }
+    }
+
+    downloadSite() {
+        if (!this.currentGeneratedSite) {
+            this.showMessage('Нет сгенерированного сайта для скачивания', 'error');
+            return;
+        }
+        
+        const domain = this.currentAnalysis?.data?.domain || 'generated-site';
+        const timestamp = new Date().toISOString().split('T')[0];
+        const filename = `synthesized-site-${domain}-${timestamp}.html`;
+        
+        this.downloadFile(filename, this.currentGeneratedSite);
+        this.showMessage('Сайт скачан!', 'success');
+    }
+
+    switchPreviewDevice(device) {
+        // Обновляем активную кнопку
+        document.querySelectorAll('.preview-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        const activeBtn = document.querySelector(`[data-device="${device}"]`);
+        if (activeBtn) activeBtn.classList.add('active');
+        
+        // Обновляем контейнер предпросмотра
+        const container = document.querySelector('.preview-container');
+        if (container) {
+            container.className = 'preview-container';
+            container.classList.add(device);
+        }
+    }
+
+    getTemplateName(templateType) {
+        const names = {
+            corporate: 'Корпоративный',
+            startup: 'Стартап',
+            portfolio: 'Портфолио',
+            minimal: 'Минималистичный'
+        };
+        return names[templateType] || templateType;
+    }
+
+    downloadFile(filename, content) {
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    exportDesignSystem() {
+        if (!this.currentAnalysis) {
+            alert('Нет данных для экспорта');
+            return;
+        }
+
+        const { data, url } = this.currentAnalysis;
+        const domain = new URL(url).hostname.replace(/[^a-zA-Z0-9]/g, '-');
+        const timestamp = new Date().toISOString().split('T')[0];
+        
+        // Создаем содержимое для экспорта
+        const cssContent = this.generateExportCSS(data);
+        const htmlContent = this.generateExportHTML(data, url);
+        const jsonContent = JSON.stringify(data, null, 2);
+        
+        // Создаем ZIP (упрощенная версия - можно доработать с JSZip)
+        this.downloadFile(`design-system-${domain}-${timestamp}.css`, cssContent);
+        this.downloadFile(`design-system-${domain}-${timestamp}.html`, htmlContent);
+        this.downloadFile(`design-system-${domain}-${timestamp}.json`, jsonContent);
+        
+        this.showMessage('Дизайн-система экспортирована в 3 файла!', 'success');
+    }
+
+    generateExportCSS(data) {
+        return this.generateColorTokens(data.colors.palette) + '\n\n' + 
+               this.generateTypographyTokens(data.typography.styles);
+    }
+
+    generateExportHTML(data, url) {
+        return `<!DOCTYPE html>
+<html>
+<head>
+    <title>Design System - ${url}</title>
+    <style>
+        ${this.generateExportCSS(data)}
+        body { font-family: var(--font-primary); max-width: 800px; margin: 0 auto; padding: 2rem; }
+        .color-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin: 2rem 0; }
+        .color-item { border-radius: 8px; overflow: hidden; }
+        .color-preview { height: 80px; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Design System for ${url}</h1>
+    <div class="color-grid">
+        ${data.colors.palette.map(color => `
+        <div class="color-item">
+            <div class="color-preview" style="background: ${color.hex}; color: ${this.getContrastColor(color.hex)};">
+                ${color.hex}
+            </div>
+        </div>
+        `).join('')}
+    </div>
+</body>
+</html>`;
+    }
+
+    // Новый метод для инициализации мультисайтовых обработчиков
+initializeMultiSiteListeners() {
+    // Кнопка добавления URL
+    document.getElementById('addUrlBtn')?.addEventListener('click', () => {
+        this.addUrlInput();
+    });
+    
+    // Кнопка анализа нескольких сайтов
+    document.getElementById('analyzeMultipleBtn')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.analyzeMultipleWebsites();
+    });
+    
+    // Удаление URL
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('.btn-remove-url')) {
+            const row = e.target.closest('.url-input-row');
+            if (row && document.querySelectorAll('.url-input-row').length > 1) {
+                row.remove();
+            }
+        }
+    });
+    
+    // Инициализируем первый input
+    this.addUrlInput();
+}
+
+// Метод для добавления поля ввода URL
+addUrlInput() {
+    const container = document.getElementById('multiUrlInputs');
+    if (!container) return;
+    
+    const row = document.createElement('div');
+    row.className = 'url-input-row';
+    row.style.cssText = 'display: flex; gap: 0.5rem; margin-bottom: 0.5rem;';
+    
+    const input = document.createElement('input');
+    input.type = 'url';
+    input.className = 'multi-url-input url-input';
+    input.placeholder = 'https://example.com';
+    input.style.flex = '1';
+    
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn-remove-url';
+    removeBtn.innerHTML = '<span class="material-symbols-outlined">delete</span>';
+    removeBtn.style.cssText = 'padding: 0.5rem; background: #fed7d7; color: #c53030; border: none; border-radius: 6px; cursor: pointer;';
+    
+    row.appendChild(input);
+    row.appendChild(removeBtn);
+    container.appendChild(row);
+    
+    // Фокус на новое поле
+    input.focus();
+}
+
+// Метод для анализа нескольких сайтов
+async analyzeMultipleWebsites() {
+    // Собираем все URL
+    const urlInputs = document.querySelectorAll('.multi-url-input');
+    const urls = Array.from(urlInputs)
+        .map(input => input.value.trim())
+        .filter(url => url && this.isValidUrl(url));
+    
+    if (urls.length < 2) {
+        this.showMessage('Для кросс-референсного анализа нужно минимум 2 сайта', 'error');
+        return;
+    }
+    
+    const strategy = document.getElementById('strategySelect')?.value || 'dominant';
+    
+    this.showMultiSiteLoadingState(urls);
+    
+    try {
+        const response = await fetch('/api/analyze-multiple', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                urls: urls,
+                strategy: strategy,
+                weights: Array(urls.length).fill(1) // Пока равные веса
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || data.details || 'Неизвестная ошибка');
+        }
+
+        if (data.success) {
+            this.showMultiSiteResults(data.data, urls, strategy);
+        } else {
+            throw new Error(data.error || 'Анализ завершился неудачно');
+        }
+
+    } catch (error) {
+        console.error('Multi-site analysis error:', error);
+        this.showError(error.message);
+    }
+}
+
+// Показ состояния загрузки для мультисайтового анализа
+showMultiSiteLoadingState(urls) {
+    document.getElementById('resultsSection').style.display = 'block';
+    document.getElementById('loadingState').style.display = 'block';
+    document.getElementById('resultsContent').style.display = 'none';
+    document.getElementById('errorState').style.display = 'none';
+    document.getElementById('synthesisSection').style.display = 'none';
+    
+    // Обновляем информацию о загрузке
+    document.getElementById('analysisUrl').textContent = `${urls.length} сайтов`;
+    document.getElementById('analysisTime').textContent = new Date().toLocaleString('ru-RU');
+    
+    // Блокируем кнопку
+    const analyzeBtn = document.getElementById('analyzeMultipleBtn');
+    if (analyzeBtn) {
+        analyzeBtn.disabled = true;
+        const btnText = analyzeBtn.querySelector('.btn-text');
+        const btnLoading = analyzeBtn.querySelector('.btn-loading');
+        if (btnText) btnText.style.display = 'none';
+        if (btnLoading) btnLoading.style.display = 'inline';
+    }
+}
+
+// Показ результатов мультисайтового анализа
+showMultiSiteResults(data, urls, strategy) {
+    this.showResults(data, urls.join(', '));
+    
+    // Добавляем информацию о мультисайтовом анализе
+    const resultsHeader = document.querySelector('.results-header');
+    if (resultsHeader) {
+        const strategyInfo = document.createElement('div');
+        strategyInfo.className = 'strategy-info-badge';
+        strategyInfo.style.cssText = `
+            background: #667eea;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin-top: 0.5rem;
+        `;
+        strategyInfo.innerHTML = `
+            <span class="material-symbols-outlined" style="vertical-align: middle;">merge</span>
+            Кросс-референсный анализ (${strategy}) • ${urls.length} сайтов
+        `;
+        resultsHeader.appendChild(strategyInfo);
+    }
+    
+    // Показываем источники в цветовой палитре
+    this.renderMultiSiteColorSources(data);
+    
+    // Восстанавливаем кнопку
+    const analyzeBtn = document.getElementById('analyzeMultipleBtn');
+    if (analyzeBtn) {
+        analyzeBtn.disabled = false;
+        const btnText = analyzeBtn.querySelector('.btn-text');
+        const btnLoading = analyzeBtn.querySelector('.btn-loading');
+        if (btnText) btnText.style.display = 'flex';
+        if (btnLoading) btnLoading.style.display = 'none';
+    }
+}
+
+// Рендерим источники цветов для мультисайтового анализа
+renderMultiSiteColorSources(data) {
+    const colorItems = document.querySelectorAll('.color-item');
+    colorItems.forEach((item, index) => {
+        if (data.colors.palette[index]?.sources) {
+            const sources = data.colors.palette[index].sources;
+            const sourceInfo = document.createElement('div');
+            sourceInfo.className = 'color-sources';
+            sourceInfo.style.cssText = `
+                margin-top: 0.5rem;
+                padding-top: 0.5rem;
+                border-top: 1px dashed #e2e8f0;
+                font-size: 0.8rem;
+                color: #718096;
+            `;
+            
+            const sourceColors = sources.slice(0, 3).map(source => 
+                `<span style="display: inline-block; width: 12px; height: 12px; background: ${source.hex}; border-radius: 2px; margin-right: 2px;" title="${source.hex}"></span>`
+            ).join('');
+            
+            const extraCount = sources.length > 3 ? `+${sources.length - 3}` : '';
+            sourceInfo.innerHTML = `
+                <div style="margin-bottom: 0.25rem;">Источники:</div>
+                <div>${sourceColors}${extraCount}</div>
+            `;
+            
+            item.querySelector('.color-info')?.appendChild(sourceInfo);
+        }
+    });
+}
+}
+
+// Инициализация при загрузке страницы
+document.addEventListener('DOMContentLoaded', () => {
+    window.analyzer = new DesignSystemAnalyzer();
+    
+    // Проверка здоровья сервера
+    fetch('/api/health')
+        .then(response => response.json())
+        .then(data => console.log('Server health:', data))
+        .catch(error => console.error('Health check failed:', error));
+});

@@ -1,5 +1,11 @@
 // modules/components/buttonAnalyzer.js
+const ColorConverter = require('../colors/utils/colorConverter');
+
 class ButtonAnalyzer {
+    constructor() {
+        this.colorConverter = new ColorConverter();
+    }
+
     async extractButtons(page) {
         console.log('🔍 Starting detailed button analysis...');
         
@@ -61,6 +67,9 @@ class ButtonAnalyzer {
                 if (classes.includes('text')) return 'text';
                 if (classes.includes('ghost')) return 'ghost';
                 if (classes.includes('danger') || classes.includes('error')) return 'danger';
+                if (classes.includes('success')) return 'success';
+                if (classes.includes('warning')) return 'warning';
+                if (classes.includes('info')) return 'info';
                 
                 // Определяем по стилям
                 const isTransparent = !bgColor || 
@@ -262,7 +271,174 @@ class ButtonAnalyzer {
         });
     }
     
-    // Кластеризация кнопок по стилям
+    // НОВЫЕ МЕТОДЫ ДЛЯ АНАЛИЗА КНОПОК
+    
+    // Анализ состояний кнопок (hover, active, focus)
+    extractButtonStates(page, buttonElement) {
+        // Этот метод требует сложной реализации с Puppeteer
+        // Пока возвращаем заглушку
+        return {
+            normal: buttonElement.styles,
+            hover: null,
+            active: null,
+            focus: null
+        };
+    }
+    
+    // Классификация размеров кнопок
+    classifyButtonSize(button) {
+        const height = button.height || 0;
+        const fontSize = parseFloat(button.styles.fontSize) || 16;
+        
+        if (height < 32 || fontSize < 12) return 'xs';
+        if (height < 40 || fontSize < 14) return 'sm';
+        if (height < 48 || fontSize < 16) return 'md';
+        if (height < 56 || fontSize < 18) return 'lg';
+        return 'xl';
+    }
+    
+    // Анализ иконок в кнопках
+    analyzeIcons(button) {
+        const iconLibraries = {
+            'material-symbols-outlined': 'Material Symbols',
+            'material-icons': 'Material Icons',
+            'fa': 'Font Awesome',
+            'fas': 'Font Awesome Solid',
+            'fab': 'Font Awesome Brands',
+            'bi': 'Bootstrap Icons',
+            'ri': 'Remix Icons',
+            'icon-': 'Custom Icons'
+        };
+        
+        const iconData = {
+            hasIcon: false,
+            library: null,
+            iconName: null,
+            position: 'none' // before, after, only, none
+        };
+        
+        // Простая проверка по классам
+        const className = button.className || '';
+        for (const [libClass, libName] of Object.entries(iconLibraries)) {
+            if (className.includes(libClass)) {
+                iconData.hasIcon = true;
+                iconData.library = libName;
+                break;
+            }
+        }
+        
+        // Проверяем наличие иконок в HTML
+        if (button.html) {
+            const hasSvg = button.html.includes('<svg');
+            const hasImg = button.html.includes('<img');
+            const hasIconClass = button.html.includes('icon-') || button.html.includes('fa-');
+            
+            if (hasSvg || hasImg || hasIconClass) {
+                iconData.hasIcon = true;
+            }
+        }
+        
+        return iconData;
+    }
+    
+    // Улучшенная классификация типа кнопки
+    classifyButtonType(button) {
+        const styles = button.styles;
+        let score = { 
+            primary: 0, 
+            secondary: 0, 
+            outline: 0, 
+            text: 0, 
+            danger: 0, 
+            success: 0,
+            warning: 0,
+            info: 0
+        };
+        
+        // Анализируем цвета
+        const bgColor = styles.backgroundColor;
+        const isTransparent = !bgColor || bgColor === 'transparent' || bgColor === 'rgba(0, 0, 0, 0)';
+        const hasBorder = styles.borderWidth && styles.borderWidth !== '0px';
+        
+        // Эвристические правила
+        if (!isTransparent && !hasBorder) {
+            score.primary += 3;
+        }
+        
+        if (isTransparent && hasBorder) {
+            score.outline += 3;
+        }
+        
+        if (isTransparent && !hasBorder) {
+            score.text += 3;
+        }
+        
+        // Анализируем цветовые семантики
+        if (bgColor && bgColor !== 'transparent' && bgColor !== 'rgba(0, 0, 0, 0)') {
+            try {
+                const colorObj = this.colorConverter.parseColor(bgColor);
+                if (colorObj) {
+                    const hsl = this.colorConverter.rgbToHsl(colorObj.r, colorObj.g, colorObj.b);
+                    
+                    // Красные оттенки (опасные действия)
+                    if ((hsl.h >= 0 && hsl.h <= 30) || (hsl.h >= 330 && hsl.h <= 360)) {
+                        score.danger += 2;
+                    }
+                    
+                    // Зеленые оттенки (успешные действия)
+                    if (hsl.h >= 90 && hsl.h <= 150) {
+                        score.success += 2;
+                    }
+                    
+                    // Оранжевые/желтые оттенки (предупреждения)
+                    if (hsl.h >= 30 && hsl.h <= 90) {
+                        score.warning += 2;
+                    }
+                    
+                    // Синие оттенки (информационные)
+                    if (hsl.h >= 180 && hsl.h <= 270) {
+                        score.info += 2;
+                    }
+                }
+            } catch (error) {
+                console.log('Error parsing color:', bgColor, error);
+            }
+        }
+        
+        // Учитываем текст кнопки
+        const buttonText = (button.text || '').toLowerCase();
+        const dangerTexts = ['удалить', 'отменить', 'стереть', 'очистить', 'delete', 'remove', 'cancel'];
+        const successTexts = ['сохранить', 'подтвердить', 'готово', 'save', 'confirm', 'done'];
+        const warningTexts = ['предупреждение', 'внимание', 'warning', 'alert'];
+        const infoTexts = ['информация', 'подробнее', 'справка', 'info', 'details', 'help'];
+        
+        if (dangerTexts.some(text => buttonText.includes(text))) {
+            score.danger += 2;
+        }
+        
+        if (successTexts.some(text => buttonText.includes(text))) {
+            score.success += 2;
+        }
+        
+        if (warningTexts.some(text => buttonText.includes(text))) {
+            score.warning += 2;
+        }
+        
+        if (infoTexts.some(text => buttonText.includes(text))) {
+            score.info += 2;
+        }
+        
+        // Выбираем тип с максимальным счетом
+        const maxType = Object.keys(score).reduce((a, b) => score[a] > score[b] ? a : b);
+        const maxScore = score[maxType];
+        
+        return {
+            type: maxType,
+            confidence: maxScore / 10 // Нормализуем до 0-1
+        };
+    }
+    
+    // Кластеризация кнопок по стилям с улучшенной классификацией
     clusterButtons(buttons) {
         if (!buttons || buttons.length === 0) {
             console.log('No buttons to cluster');
@@ -271,65 +447,106 @@ class ButtonAnalyzer {
                 secondary: null,
                 outline: null,
                 text: null,
+                danger: null,
+                success: null,
+                warning: null,
+                info: null,
                 icon: null
             };
         }
         
         console.log(`Clustering ${buttons.length} buttons...`);
         
-        // Группируем по типу
-        const groups = {
-            primary: [],
-            secondary: [],
-            outline: [],
-            text: [],
-            icon: [],
-            other: []
+        // Инициализируем кластеры
+        const clusters = {
+            primary: { buttons: [], confidence: 0 },
+            secondary: { buttons: [], confidence: 0 },
+            outline: { buttons: [], confidence: 0 },
+            text: { buttons: [], confidence: 0 },
+            danger: { buttons: [], confidence: 0 },
+            success: { buttons: [], confidence: 0 },
+            warning: { buttons: [], confidence: 0 },
+            info: { buttons: [], confidence: 0 },
+            icon: { buttons: [], confidence: 0 }
         };
         
+        // Классифицируем каждую кнопку
         buttons.forEach(button => {
-            const type = button.type || 'primary';
-            if (groups[type]) {
-                groups[type].push(button);
-            } else {
-                groups.other.push(button);
+            const classification = this.classifyButtonType(button);
+            const type = classification.type;
+            
+            if (clusters[type]) {
+                clusters[type].buttons.push(button);
+                clusters[type].confidence += classification.confidence;
+            }
+            
+            // Отдельно проверяем на иконки
+            const iconData = this.analyzeIcons(button);
+            if (iconData.hasIcon) {
+                clusters.icon.buttons.push(button);
+                clusters.icon.confidence += 0.5;
             }
         });
         
-        // Если нет primary, используем самую частую группу
-        if (groups.primary.length === 0) {
-            let maxGroup = 'other';
-            let maxCount = 0;
-            
-            Object.entries(groups).forEach(([groupName, groupButtons]) => {
-                if (groupButtons.length > maxCount && groupName !== 'other') {
-                    maxCount = groupButtons.length;
-                    maxGroup = groupName;
-                }
-            });
-            
-            if (maxGroup !== 'other') {
-                groups.primary = groups[maxGroup];
-                groups[maxGroup] = [];
-            }
-        }
-        
-        // Находим наиболее представительную кнопку в каждой группе
+        // Фильтруем пустые кластеры и выбираем лучшие примеры
         const result = {};
-        
-        Object.entries(groups).forEach(([groupName, groupButtons]) => {
-            if (groupButtons.length > 0) {
-                result[groupName] = this.findRepresentativeButton(groupButtons);
-                console.log(`Group ${groupName}: ${groupButtons.length} buttons, representative: ${result[groupName]?.text}`);
+        Object.entries(clusters).forEach(([type, cluster]) => {
+            if (cluster.buttons.length > 0) {
+                // Находим наиболее репрезентативную кнопку
+                const representative = this.findBestRepresentative(cluster.buttons, type);
+                result[type] = {
+                    ...representative,
+                    count: cluster.buttons.length,
+                    confidence: cluster.buttons.length > 0 ? 
+                        cluster.confidence / cluster.buttons.length : 0,
+                    size: this.classifyButtonSize(representative),
+                    iconData: this.analyzeIcons(representative)
+                };
+                console.log(`Group ${type}: ${cluster.buttons.length} buttons, representative: ${representative?.text}`);
             } else {
-                result[groupName] = null;
+                result[type] = null;
             }
         });
         
         return result;
     }
     
-    // Поиск наиболее представительной кнопки в группе
+    // Нахождение лучшего представителя кластера
+    findBestRepresentative(buttons, type) {
+        if (buttons.length === 0) return null;
+        if (buttons.length === 1) return buttons[0];
+        
+        // Сортируем по релевантности для типа
+        const sortedButtons = [...buttons].sort((a, b) => {
+            const scoreA = this.calculateButtonRelevance(a, type);
+            const scoreB = this.calculateButtonRelevance(b, type);
+            return scoreB - scoreA; // По убыванию
+        });
+        
+        return sortedButtons[0];
+    }
+    
+    // Расчет релевантности кнопки для типа
+    calculateButtonRelevance(button, type) {
+        let score = 0;
+        
+        // Размер кнопки (средние размеры обычно лучше)
+        const height = button.height || 0;
+        if (height >= 40 && height <= 60) score += 2;
+        
+        // Наличие текста
+        if (button.text && button.text.trim().length > 0) score += 2;
+        
+        // Качество стилей
+        const styles = button.styles;
+        if (styles.backgroundColor && styles.backgroundColor !== 'transparent') score += 1;
+        if (styles.borderRadius && styles.borderRadius !== '0px') score += 1;
+        if (styles.fontSize && parseFloat(styles.fontSize) >= 14) score += 1;
+        
+        return score;
+    }
+    
+    // Поиск наиболее представительной кнопки в группе (старый метод для обратной совместимости)
     findRepresentativeButton(buttons) {
         if (buttons.length === 0) return null;
         if (buttons.length === 1) return buttons[0];

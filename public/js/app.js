@@ -3,9 +3,44 @@ class DesignSystemAnalyzer {
         this.initializeEventListeners();
         this.currentAnalysis = null;
         this.currentGeneratedSite = null;
+        this.editorSettings = {
+        colors: {},
+        typography: {},
+        buttons: {}
+    };
+    this.googleFontsList = [
+        'Arial', 'Helvetica', 'Times New Roman', 'Courier New',
+        'Georgia', 'Verdana', 'Tahoma', 'Trebuchet MS', 'Impact',
+        // Google Fonts
+        'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Raleway',
+        'Poppins', 'Nunito', 'Inter', 'Manrope', 'Rubik'
+    ];
+    this.initExportButton();
+    this.debounceTimer = null;
+    this.sourceAnalyses = [];
     }
 
     initializeEventListeners() {
+        const strategySelect = document.getElementById('strategySelect');
+if (strategySelect) {
+    // Очищаем существующие опции
+    strategySelect.innerHTML = '';
+    
+    // Добавляем опции стратегий
+    const strategies = [
+        { value: 'bestPractices', label: 'Лучшие практики' },
+        { value: 'commonPatterns', label: 'Общие паттерны' },
+        { value: 'userPriorities', label: 'Пользовательские приоритеты' },
+        { value: 'hybrid', label: 'Гибридная' }
+    ];
+    
+    strategies.forEach(strategy => {
+        const option = document.createElement('option');
+        option.value = strategy.value;
+        option.textContent = strategy.label;
+        strategySelect.appendChild(option);
+    });
+}
         // Форма анализа
         document.getElementById('analysisForm').addEventListener('submit', (e) => {
             e.preventDefault();
@@ -39,12 +74,941 @@ class DesignSystemAnalyzer {
             this.clearHistory();
         });
 
+        document.getElementById('strategySelect').addEventListener('change', () => {
+            this.toggleStrategyPanels();
+        });
+
+        document.getElementById('strategySelect').addEventListener('change', () => {
+            this.toggleStrategyPanels();
+        });
+
         // Инициализация синтеза
         this.initSynthesis();
         
         // Загрузка истории при старте
         this.loadHistory();
+
+        // Добавим в конструктор DesignSystemAnalyzer
+        this.multiUrls = [''];
+
+        // Добавим в initializeEventListeners() после других обработчиков
+        this.initializeMultiSiteListeners();
     }
+
+    // Новый метод для инициализации мультисайтовых обработчиков
+    initializeMultiSiteListeners() {
+        // Кнопка добавления URL
+        document.getElementById('addUrlBtn')?.addEventListener('click', () => {
+            this.addUrlInput();
+        });
+        
+        // Кнопка анализа нескольких сайтов
+        document.getElementById('analyzeMultipleBtn')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.analyzeMultipleWebsites();
+        });
+        
+        // Удаление URL
+        document.addEventListener('click', (e) => {
+            if (e.target.closest('.btn-remove-url')) {
+                const row = e.target.closest('.input-group');
+                if (row && document.querySelectorAll('.input-group').length > 1) {
+                    row.remove();
+                }
+            }
+        });
+        
+        // Инициализируем первый input
+        this.addUrlInput();
+    }
+
+    initEditor(data) {
+        // Цвета
+        this.editorSettings.colors = {};
+        data.colors.palette.forEach(color => {
+            if (color.role) {
+                this.editorSettings.colors[color.role] = {
+                    hex: color.hex,
+                    alternatives: this.findAlternativeColorsForRole(data.colors.palette, color.role)
+                };
+            }
+        });
+
+        // Типографика
+        this.editorSettings.typography = {};
+        const typographyStyles = data.typography.styles || [];
+        ['body', 'h1', 'h2', 'h3', 'p', 'a', 'button'].forEach(tag => {
+            const style = typographyStyles.find(s => s.tag === tag) || {};
+            this.editorSettings.typography[tag] = {
+                fontFamily: style.fontFamily || 'Arial',
+                fontSize: style.fontSize || (tag === 'h1' ? '32px' : tag === 'h2' ? '24px' : '16px'),
+                fontWeight: style.fontWeight || '400',
+                lineHeight: style.lineHeight || '1.5'
+            };
+        });
+
+        // Кнопки — собираем все варианты из sourceAnalyses
+        this.editorSettings.buttons = {};
+        if (this.sourceAnalyses && this.sourceAnalyses.length > 0) {
+            const variantsByType = {};
+
+            this.sourceAnalyses.forEach((source, idx) => {
+                const domain = source.domain || `Сайт ${idx+1}`;
+                const buttonsData = source.data.buttons;
+                if (!buttonsData) return;
+
+                // Добавляем samples
+                if (buttonsData.samples && buttonsData.samples.length) {
+                    buttonsData.samples.forEach(btn => {
+                        const type = btn.type || 'unknown';
+                        if (!variantsByType[type]) variantsByType[type] = [];
+                        variantsByType[type].push({
+                            ...btn,
+                            source: domain,
+                            sourceIdx: idx,
+                            isCustom: false
+                        });
+                    });
+                }
+
+                // Добавляем clusters (если не дублируются)
+                if (buttonsData.clusters) {
+                    Object.entries(buttonsData.clusters).forEach(([type, btn]) => {
+                        if (!btn) return;
+                        const exists = variantsByType[type]?.some(v => 
+                            v.text === btn.text && 
+                            v.styles?.backgroundColor === btn.styles?.backgroundColor
+                        );
+                        if (!exists) {
+                            if (!variantsByType[type]) variantsByType[type] = [];
+                            variantsByType[type].push({
+                                ...btn,
+                                source: domain,
+                                sourceIdx: idx,
+                                isCustom: false
+                            });
+                        }
+                    });
+                }
+            });
+
+            // Добавляем кастомный вариант для каждого типа
+            Object.keys(variantsByType).forEach(type => {
+                variantsByType[type].push({
+                    type: type,
+                    text: 'Новая кнопка',
+                    styles: {
+                        backgroundColor: '#007bff',
+                        color: '#ffffff',
+                        borderWidth: '0',
+                        borderStyle: 'solid',
+                        borderColor: 'transparent',
+                        borderRadius: '6px',
+                        padding: { top: '12px', right: '24px', bottom: '12px', left: '24px' },
+                        fontFamily: 'Arial',
+                        fontSize: '16px',
+                        fontWeight: '500',
+                        lineHeight: '1.5'
+                    },
+                    source: 'Кастомная',
+                    isCustom: true
+                });
+
+                this.editorSettings.buttons[type] = {
+                    selectedIndex: 0,
+                    variants: variantsByType[type]
+                };
+            });
+        } else {
+            // fallback, если нет sourceAnalyses
+            if (data.buttons && data.buttons.clusters) {
+                Object.entries(data.buttons.clusters).forEach(([type, btn]) => {
+                    if (btn) {
+                        this.editorSettings.buttons[type] = {
+                            selectedIndex: 0,
+                            variants: [btn]
+                        };
+                    }
+                });
+            }
+        }
+
+        this.renderEditor();
+        document.getElementById('editorSection').style.display = 'block';
+        this.initTabs();
+    }
+
+
+initTabs() {
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tab = btn.dataset.tab;
+            // Убираем active со всех кнопок и панелей
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById(`tab${tab.charAt(0).toUpperCase() + tab.slice(1)}`).classList.add('active');
+        });
+    });
+}
+
+findAlternativeColorsForRole(palette, role) {
+    return palette.filter(c => c.role !== role).map(c => c.hex);
+}
+
+renderEditor() {
+    this.renderColorEditor();
+    this.renderTypographyEditor();
+    this.renderButtonsEditor();
+    this.attachEditorEvents();
+}
+
+renderColorEditor() {
+    const container = document.getElementById('colorEditor');
+    if (!container) return;
+    let html = '';
+    Object.entries(this.editorSettings.colors).forEach(([role, data]) => {
+        const roleName = this.getRoleName(role);
+        const alternatives = data.alternatives || [];
+        const options = alternatives.map(alt => `<option value="${alt}" ${alt === data.hex ? 'selected' : ''}>${alt}</option>`).join('');
+        html += `
+            <div class="color-editor-item" data-role="${role}">
+                <div class="color-preview" style="background: ${data.hex}; color: ${this.getContrastColor(data.hex)};">${data.hex}</div>
+                <div class="color-role">${roleName}</div>
+                <div class="color-controls">
+                    <input type="color" class="color-picker" value="${data.hex}" data-role="${role}" title="Выбрать цвет">
+                    <select class="color-alternative" data-role="${role}">
+                        <option value="">Палитра</option>
+                        ${options}
+                    </select>
+                </div>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+    this.attachColorEvents();
+}
+
+attachColorEvents() {
+    document.querySelectorAll('.color-picker').forEach(input => {
+        input.addEventListener('input', (e) => {
+            const role = e.target.dataset.role;
+            const newColor = e.target.value;
+            this.editorSettings.colors[role].hex = newColor;
+            this.updateColorPreview(role, newColor);
+            this.markAsDirty();
+        });
+    });
+    document.querySelectorAll('.color-alternative').forEach(select => {
+        select.addEventListener('change', (e) => {
+            const role = e.target.dataset.role;
+            const newColor = e.target.value;
+            if (newColor) {
+                this.editorSettings.colors[role].hex = newColor;
+                const picker = document.querySelector(`.color-picker[data-role="${role}"]`);
+                if (picker) picker.value = newColor;
+                this.updateColorPreview(role, newColor);
+                this.markAsDirty();
+            }
+        });
+    });
+}
+
+attachTypographyEvents() {
+    document.querySelectorAll('.font-family, .font-size, .font-weight, .line-height').forEach(input => {
+        input.addEventListener('input', (e) => {
+            const tag = e.target.dataset.tag;
+            const prop = e.target.classList.contains('font-family') ? 'fontFamily' :
+                        e.target.classList.contains('font-size') ? 'fontSize' :
+                        e.target.classList.contains('font-weight') ? 'fontWeight' : 'lineHeight';
+            this.editorSettings.typography[tag][prop] = e.target.value;
+            this.markAsDirty();
+        });
+    });
+}
+
+markAsDirty() {
+    if (this.debounceTimer) clearTimeout(this.debounceTimer);
+    // ничего не делаем, ждём кнопку "Применить"
+}
+
+initApplyButton() {
+    const applyBtn = document.getElementById('applyChangesBtn');
+    if (applyBtn) {
+        applyBtn.style.display = 'inline-flex';
+        applyBtn.addEventListener('click', () => {
+            this.regenerateSite(); // без debounce, сразу
+        });
+    }
+}
+
+renderTypographyEditor() {
+    const container = document.getElementById('typographyEditor');
+    if (!container) return;
+
+    // Группируем теги
+    const groups = {
+        'Заголовки': ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
+        'Текст': ['body', 'p'],
+        'Ссылки': ['a'],
+        'Кнопки': ['button']
+    };
+
+    let html = '';
+    Object.entries(groups).forEach(([groupName, tags]) => {
+        html += `<div class="typography-group"><h4>${groupName}</h4>`;
+        tags.forEach(tag => {
+            const settings = this.editorSettings.typography[tag] || {
+                fontFamily: 'Arial',
+                fontSize: '16px',
+                fontWeight: '400',
+                lineHeight: '1.5'
+            };
+            const fontOptions = this.googleFontsList.map(f => `<option value="${f}" ${settings.fontFamily === f ? 'selected' : ''}>${f}</option>`).join('');
+            html += `
+                <div class="typography-editor-item" data-tag="${tag}">
+                    <div class="tag">${tag.toUpperCase()}</div>
+                    <div class="controls">
+                        <div class="control-group">
+                            <label>Шрифт</label>
+                            <select class="font-family" data-tag="${tag}">
+                                ${fontOptions}
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label>Размер</label>
+                            <input type="text" class="font-size" value="${settings.fontSize}" data-tag="${tag}" placeholder="16px">
+                        </div>
+                        <div class="control-group">
+                            <label>Вес</label>
+                            <input type="text" class="font-weight" value="${settings.fontWeight}" data-tag="${tag}" placeholder="400">
+                        </div>
+                        <div class="control-group">
+                            <label>Высота строки</label>
+                            <input type="text" class="line-height" value="${settings.lineHeight}" data-tag="${tag}" placeholder="1.5">
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        html += `</div>`;
+    });
+    container.innerHTML = html;
+    this.attachTypographyEvents();
+}
+
+renderButtonsEditor() {
+    const container = document.getElementById('buttonsEditor');
+    if (!container) return;
+    let html = '';
+
+    Object.entries(this.editorSettings.buttons).forEach(([type, data]) => {
+        const variants = data.variants || [];
+        if (variants.length === 0) return;
+        const selectedIdx = data.selectedIndex;
+        const selectedBtn = variants[selectedIdx] || variants[0];
+
+        // Строим строку стилей для предпросмотра
+        const styles = selectedBtn.styles || {};
+        const styleString = `
+            background: ${styles.backgroundColor || 'transparent'};
+            color: ${styles.color || '#000'};
+            border: ${styles.borderWidth || '0'} ${styles.borderStyle || 'solid'} ${styles.borderColor || 'transparent'};
+            border-radius: ${styles.borderRadius || '0'};
+            padding: ${styles.padding?.top || '8px'} ${styles.padding?.right || '16px'} ${styles.padding?.bottom || '8px'} ${styles.padding?.left || '16px'};
+            font-family: ${styles.fontFamily || 'inherit'};
+            font-size: ${styles.fontSize || '1rem'};
+            font-weight: ${styles.fontWeight || 'normal'};
+            line-height: ${styles.lineHeight || '1.5'};
+        `;
+
+        // Кнопки переключения вариантов
+        const variantButtons = variants.map((v, idx) => {
+            let label = v.source && !v.isCustom ? v.source.substring(0, 10) : 'Кастом';
+            if (v.text && v.text.length > 8) label = v.text.substring(0, 8) + '…';
+            else if (v.text) label = v.text;
+            else label = `Вар. ${idx+1}`;
+            return `<button class="variant-btn ${idx === selectedIdx ? 'active' : ''}" data-type="${type}" data-index="${idx}">${label}</button>`;
+        }).join('');
+
+        // Панель редактирования
+        const bgHex = this.rgbOrHexToHex(styles.backgroundColor);
+        const colorHex = this.rgbOrHexToHex(styles.color);
+        const borderColorHex = this.rgbOrHexToHex(styles.borderColor);
+
+        html += `
+            <div class="buttons-editor-item" data-type="${type}">
+                <div class="button-type">${this.getButtonTypeName(type)}</div>
+                <div class="variants">
+                    ${variantButtons}
+                    <button class="variant-btn" data-type="${type}" data-index="new">+ Создать</button>
+                </div>
+                <div class="button-preview" style="${styleString}">${selectedBtn.text || 'Кнопка'}</div>
+                <div class="button-editor-panel">
+                    <h5>Настройки</h5>
+                    <div class="editor-grid">
+                        <div class="control-group">
+                            <label>Текст</label>
+                            <input type="text" class="btn-text" value="${selectedBtn.text || ''}" data-type="${type}">
+                        </div>
+                        <div class="control-group">
+                            <label>Цвет фона</label>
+                            <input type="color" class="btn-bg" value="${bgHex}" data-type="${type}">
+                        </div>
+                        <div class="control-group">
+                            <label>Цвет текста</label>
+                            <input type="color" class="btn-color" value="${colorHex}" data-type="${type}">
+                        </div>
+                        <div class="control-group">
+                            <label>Размер шрифта</label>
+                            <input type="text" class="btn-font-size" value="${styles.fontSize || '16px'}" data-type="${type}">
+                        </div>
+                        <div class="control-group">
+                            <label>Вес шрифта</label>
+                            <input type="text" class="btn-font-weight" value="${styles.fontWeight || '400'}" data-type="${type}">
+                        </div>
+                        <div class="control-group">
+                            <label>Радиус скругления</label>
+                            <input type="text" class="btn-border-radius" value="${styles.borderRadius || '0'}" data-type="${type}">
+                        </div>
+                        <div class="control-group">
+                            <label>Ширина границы</label>
+                            <input type="text" class="btn-border-width" value="${styles.borderWidth || '0'}" data-type="${type}">
+                        </div>
+                        <div class="control-group">
+                            <label>Стиль границы</label>
+                            <select class="btn-border-style" data-type="${type}">
+                                <option value="solid" ${styles.borderStyle === 'solid' ? 'selected' : ''}>Solid</option>
+                                <option value="dashed" ${styles.borderStyle === 'dashed' ? 'selected' : ''}>Dashed</option>
+                                <option value="dotted" ${styles.borderStyle === 'dotted' ? 'selected' : ''}>Dotted</option>
+                                <option value="none" ${styles.borderStyle === 'none' ? 'selected' : ''}>None</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label>Цвет границы</label>
+                            <input type="color" class="btn-border-color" value="${borderColorHex}" data-type="${type}">
+                        </div>
+                        <div class="control-group">
+                            <label>Отступы (top right bottom left)</label>
+                            <div style="display: flex; gap: 4px;">
+                                <input type="text" class="btn-padding-top" placeholder="top" value="${styles.padding?.top || '0'}" data-type="${type}" style="width: 60px;">
+                                <input type="text" class="btn-padding-right" placeholder="right" value="${styles.padding?.right || '0'}" data-type="${type}" style="width: 60px;">
+                                <input type="text" class="btn-padding-bottom" placeholder="bottom" value="${styles.padding?.bottom || '0'}" data-type="${type}" style="width: 60px;">
+                                <input type="text" class="btn-padding-left" placeholder="left" value="${styles.padding?.left || '0'}" data-type="${type}" style="width: 60px;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+    this.attachButtonEvents();
+}
+
+// Вспомогательная функция rgb -> hex
+rgbOrHexToHex(color) {
+    if (!color) return '#000000';
+    if (color.startsWith('#')) return color;
+    const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+        const r = parseInt(match[1]).toString(16).padStart(2,'0');
+        const g = parseInt(match[2]).toString(16).padStart(2,'0');
+        const b = parseInt(match[3]).toString(16).padStart(2,'0');
+        return `#${r}${g}${b}`;
+    }
+    return '#000000';
+}
+
+// Обработчики для кнопок
+attachButtonEvents() {
+    const container = document.getElementById('buttonsEditor');
+    if (!container) return;
+
+    // Переключение вариантов
+    container.addEventListener('click', (e) => {
+        if (e.target.classList.contains('variant-btn')) {
+            const type = e.target.dataset.type;
+            const index = e.target.dataset.index;
+            if (index === 'new') {
+                this.createNewButtonVariant(type);
+            } else {
+                this.editorSettings.buttons[type].selectedIndex = parseInt(index);
+                this.renderButtonsEditor();
+                this.regenerateSite();
+            }
+        }
+    });
+
+    // Изменение полей
+    container.addEventListener('input', (e) => {
+        const target = e.target;
+        if (target.matches('.btn-text, .btn-bg, .btn-color, .btn-font-size, .btn-font-weight, .btn-border-radius, .btn-border-width, .btn-border-style, .btn-border-color, .btn-padding-top, .btn-padding-right, .btn-padding-bottom, .btn-padding-left')) {
+            const type = target.dataset.type;
+            let prop = '';
+            if (target.classList.contains('btn-text')) prop = 'text';
+            else if (target.classList.contains('btn-bg')) prop = 'backgroundColor';
+            else if (target.classList.contains('btn-color')) prop = 'color';
+            else if (target.classList.contains('btn-font-size')) prop = 'fontSize';
+            else if (target.classList.contains('btn-font-weight')) prop = 'fontWeight';
+            else if (target.classList.contains('btn-border-radius')) prop = 'borderRadius';
+            else if (target.classList.contains('btn-border-width')) prop = 'borderWidth';
+            else if (target.classList.contains('btn-border-style')) prop = 'borderStyle';
+            else if (target.classList.contains('btn-border-color')) prop = 'borderColor';
+            else if (target.classList.contains('btn-padding-top')) prop = 'paddingTop';
+            else if (target.classList.contains('btn-padding-right')) prop = 'paddingRight';
+            else if (target.classList.contains('btn-padding-bottom')) prop = 'paddingBottom';
+            else if (target.classList.contains('btn-padding-left')) prop = 'paddingLeft';
+
+            if (prop) {
+                this.updateButtonProperty(type, prop, target.value);
+            }
+        }
+    });
+}
+
+// Создание нового кастомного варианта
+createNewButtonVariant(type) {
+    const newBtn = {
+        type: type,
+        text: 'Новая кнопка',
+        styles: {
+            backgroundColor: '#007bff',
+            color: '#ffffff',
+            borderWidth: '0',
+            borderStyle: 'solid',
+            borderColor: 'transparent',
+            borderRadius: '6px',
+            padding: { top: '12px', right: '24px', bottom: '12px', left: '24px' },
+            fontFamily: 'Arial',
+            fontSize: '16px',
+            fontWeight: '500',
+            lineHeight: '1.5'
+        },
+        source: 'Кастомная',
+        isCustom: true
+    };
+    this.editorSettings.buttons[type].variants.push(newBtn);
+    this.editorSettings.buttons[type].selectedIndex = this.editorSettings.buttons[type].variants.length - 1;
+    this.renderButtonsEditor();
+    this.regenerateSite();
+}
+
+// Обновление свойства выбранной кнопки
+updateButtonProperty(type, prop, value) {
+    const buttonData = this.editorSettings.buttons[type];
+    const selected = buttonData.variants[buttonData.selectedIndex];
+    
+    // Если выбранный вариант не кастомный, создаём кастомный на его основе
+    if (!selected.isCustom) {
+        const newVariant = JSON.parse(JSON.stringify(selected));
+        newVariant.isCustom = true;
+        newVariant.source = 'Кастомная';
+        buttonData.variants.push(newVariant);
+        buttonData.selectedIndex = buttonData.variants.length - 1;
+    }
+
+    const current = buttonData.variants[buttonData.selectedIndex];
+    
+    if (prop.includes('padding')) {
+        const side = prop.replace('padding', '').toLowerCase();
+        if (!current.styles.padding) current.styles.padding = {};
+        current.styles.padding[side] = value;
+    } else if (prop === 'text') {
+        current.text = value;
+    } else {
+        if (!current.styles) current.styles = {};
+        current.styles[prop] = value;
+    }
+
+    this.renderButtonsEditor(); // обновить UI (чтобы предпросмотр и поля отобразили новые значения)
+    this.regenerateSite();
+}
+
+attachEditorEvents() {
+    // Цвета
+    document.querySelectorAll('.color-picker').forEach(input => {
+        input.addEventListener('input', (e) => {
+            const role = e.target.dataset.role;
+            const newColor = e.target.value;
+            this.editorSettings.colors[role].hex = newColor;
+            this.updateColorPreview(role, newColor);
+            this.markAsDirty();
+        });
+    });
+    document.querySelectorAll('.color-alternative').forEach(select => {
+        select.addEventListener('change', (e) => {
+            const role = e.target.dataset.role;
+            const newColor = e.target.value;
+            if (newColor) {
+                this.editorSettings.colors[role].hex = newColor;
+                const picker = document.querySelector(`.color-picker[data-role="${role}"]`);
+                if (picker) picker.value = newColor;
+                this.updateColorPreview(role, newColor);
+                this.markAsDirty();
+            }
+        });
+    });
+
+    // Типографика
+    document.querySelectorAll('.font-family, .font-size, .font-weight, .line-height').forEach(input => {
+        input.addEventListener('input', (e) => {
+            const tag = e.target.dataset.tag;
+            const prop = e.target.classList.contains('font-family') ? 'fontFamily' :
+                        e.target.classList.contains('font-size') ? 'fontSize' :
+                        e.target.classList.contains('font-weight') ? 'fontWeight' : 'lineHeight';
+            this.editorSettings.typography[tag][prop] = e.target.value;
+            this.markAsDirty();
+        });
+    });
+
+    // Кнопки: переключение вариантов
+    document.querySelectorAll('.variant-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const type = e.target.dataset.type;
+            const index = parseInt(e.target.dataset.index);
+            this.editorSettings.buttons[type].selectedIndex = index;
+            this.renderButtonsEditor(); // обновить секцию кнопок
+            this.markAsDirty();
+        });
+    });
+}
+
+updateColorPreview(role, color) {
+    const item = document.querySelector(`.color-editor-item[data-role="${role}"]`);
+    if (item) {
+        const preview = item.querySelector('.color-preview');
+        preview.style.background = color;
+        preview.style.color = this.getContrastColor(color);
+        preview.textContent = color;
+    }
+}
+
+regenerateSite() {
+    if (this.debounceTimer) clearTimeout(this.debounceTimer);
+    this.debounceTimer = setTimeout(() => {
+        if (!this.currentAnalysis) return;
+        const modifiedData = this.buildModifiedDesignSystem();
+        this.generateSiteWithData(modifiedData);
+    }, 500); // задержка 500 мс
+}
+
+buildModifiedDesignSystem() {
+    const original = this.currentAnalysis.data;
+    const modified = JSON.parse(JSON.stringify(original));
+
+    // Применяем изменения цветов
+    Object.entries(this.editorSettings.colors).forEach(([role, data]) => {
+        const colorInPalette = modified.colors.palette.find(c => c.role === role);
+        if (colorInPalette) colorInPalette.hex = data.hex;
+    });
+
+    // Применяем изменения типографики
+    modified.typography.styles = modified.typography.styles || [];
+    Object.entries(this.editorSettings.typography).forEach(([tag, settings]) => {
+        let style = modified.typography.styles.find(s => s.tag === tag);
+        if (!style) {
+            style = { tag };
+            modified.typography.styles.push(style);
+        }
+        style.fontFamily = settings.fontFamily;
+        style.fontSize = settings.fontSize;
+        style.fontWeight = settings.fontWeight;
+        style.lineHeight = settings.lineHeight;
+    });
+
+    // Применяем изменения кнопок
+    if (modified.buttons && modified.buttons.clusters) {
+        Object.entries(this.editorSettings.buttons).forEach(([type, data]) => {
+            const selectedBtn = data.variants[data.selectedIndex];
+            if (selectedBtn) {
+                modified.buttons.clusters[type] = selectedBtn;
+            }
+        });
+    }
+
+    return modified;
+}
+
+generateSiteWithData(designSystem) {
+    const templateType = document.getElementById('templateSelect')?.value || 'corporate';
+    fetch('/api/synthesize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ designSystem, templateType })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            this.showGeneratedSite(data.html, templateType);
+        } else {
+            this.showMessage('Ошибка генерации: ' + data.error, 'error');
+        }
+    })
+    .catch(err => this.showMessage('Ошибка сети', 'error'));
+}
+
+initExportButton() {
+    document.getElementById('exportDesignBtn').addEventListener('click', () => {
+        this.exportCurrentDesign();
+    });
+}
+
+exportCurrentDesign() {
+    if (!this.currentAnalysis) return;
+    const modifiedData = this.buildModifiedDesignSystem();
+    const css = this.generateExportCSS(modifiedData);
+    const json = JSON.stringify(modifiedData, null, 2);
+    this.downloadFile('design-system.css', css);
+    this.downloadFile('design-system.json', json);
+    this.showMessage('Дизайн-система экспортирована', 'success');
+}
+
+// Метод для добавления поля ввода URL
+addUrlInput() {
+    const container = document.getElementById('multiUrlInputs');
+    if (!container) return;
+    
+    const row = document.createElement('div');
+    row.className = 'input-group';
+    row.style.cssText = 'display: flex; gap: 1rem; margin-bottom: 1.5rem;';
+    
+    const input = document.createElement('input');
+    input.type = 'url';
+    input.className = 'multi-url-input url-input';
+    input.placeholder = 'https://example.com';
+    input.style.flex = '1';
+    input.style.maxWidth = '818px';
+    
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn-remove-url';
+    removeBtn.innerHTML = '<span class="material-symbols-outlined delete">delete</span>';
+    removeBtn.style.cssText = 'padding: 1rem; background: #fed7d7; color: #c53030; border: none; border-radius: 6px; cursor: pointer;';
+    removeBtn.style.height = '50px';
+    removeBtn.style.minWidth = '40px';
+    removeBtn.style.alignItems = 'center';
+    
+    row.appendChild(input);
+    row.appendChild(removeBtn);
+    container.appendChild(row);
+    
+    // Фокус на новое поле
+    input.focus();
+}
+
+// Метод для анализа нескольких сайтов
+async analyzeMultipleWebsites() {
+    const urlInputs = document.querySelectorAll('.multi-url-input');
+    const urls = Array.from(urlInputs)
+        .map(input => input.value.trim())
+        .filter(url => url && this.isValidUrl(url));
+
+    if (urls.length < 2) {
+        this.showMessage('Для кросс-референсного анализа нужно минимум 2 сайта', 'error');
+        return;
+    }
+
+    const strategy = document.getElementById('strategySelect')?.value || 'bestPractices';
+    let preferences = {};
+
+    // Собираем пользовательские настройки
+    if (strategy === 'userPriorities') {
+        preferences = {
+            colors: parseInt(document.getElementById('colorSourceSelect')?.value) || 0,
+            typography: parseInt(document.getElementById('typographySourceSelect')?.value) || 0,
+            buttons: parseInt(document.getElementById('buttonsSourceSelect')?.value) || 0
+        };
+    } else if (strategy === 'hybrid') {
+        preferences = { useCommonFor: [] };
+        if (document.getElementById('hybridColors')?.checked) preferences.useCommonFor.push('colors');
+        if (document.getElementById('hybridTypography')?.checked) preferences.useCommonFor.push('typography');
+        if (document.getElementById('hybridButtons')?.checked) preferences.useCommonFor.push('buttons');
+    }
+
+    this.showMultiSiteLoadingState(urls);
+
+    try {
+        const response = await fetch('/api/analyze-multiple', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ urls, strategy, preferences })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || data.details || 'Неизвестная ошибка');
+        }
+
+        if (data.success) {
+            console.log('✅ Multi-site results received:', data.data);
+            this.showMultiSiteResults(data.data, urls, strategy);
+        } else {
+            throw new Error(data.error || 'Анализ завершился неудачно');
+        }
+
+    } catch (error) {
+        console.error('❌ Multi-site analysis error:', error);
+        this.showError(error.message);
+        // Разблокируем кнопку
+        const analyzeBtn = document.getElementById('analyzeMultipleBtn');
+        if (analyzeBtn) {
+            analyzeBtn.disabled = false;
+            const btnText = analyzeBtn.querySelector('.btn-text');
+            const btnLoading = analyzeBtn.querySelector('.btn-loading');
+            if (btnText) btnText.style.display = 'flex';
+            if (btnLoading) btnLoading.style.display = 'none';
+        }
+    }
+}
+
+// Показ состояния загрузки для мультисайтового анализа
+showMultiSiteLoadingState(urls) {
+    document.getElementById('resultsSection').style.display = 'block';
+    document.getElementById('loadingState').style.display = 'block';
+    document.getElementById('resultsContent').style.display = 'none';
+    document.getElementById('errorState').style.display = 'none';
+    document.getElementById('synthesisSection').style.display = 'none';
+    
+    // Обновляем информацию о загрузке
+    document.getElementById('analysisUrl').textContent = `${urls.length} сайтов`;
+    document.getElementById('analysisTime').textContent = new Date().toLocaleString('ru-RU');
+    
+    // Блокируем кнопку
+    const analyzeBtn = document.getElementById('analyzeMultipleBtn');
+    if (analyzeBtn) {
+        analyzeBtn.disabled = true;
+        const btnText = analyzeBtn.querySelector('.btn-text');
+        const btnLoading = analyzeBtn.querySelector('.btn-loading');
+        if (btnText) btnText.style.display = 'none';
+        if (btnLoading) btnLoading.style.display = 'inline';
+    }
+}
+
+// Метод для показа/скрытия панелей
+toggleStrategyPanels() {
+    const strategy = document.getElementById('strategySelect').value;
+    document.getElementById('userPrioritiesPanel').style.display = strategy === 'userPriorities' ? 'block' : 'none';
+    document.getElementById('hybridPanel').style.display = strategy === 'hybrid' ? 'block' : 'none';
+
+    // Если открыта панель userPriorities, нужно заполнить select списком сайтов
+    if (strategy === 'userPriorities') {
+        this.updatePrioritySources();
+    }
+}
+
+// Заполнение выпадающих списков именами сайтов (вызывается перед показом панели)
+updatePrioritySources() {
+    const urlInputs = document.querySelectorAll('.multi-url-input');
+    const urls = Array.from(urlInputs).map(input => input.value.trim()).filter(url => url);
+    const selects = ['colorSourceSelect', 'typographySourceSelect', 'buttonsSourceSelect'];
+
+    selects.forEach(selectId => {
+        const select = document.getElementById(selectId);
+        if (!select) return;
+        select.innerHTML = '';
+        urls.forEach((url, idx) => {
+            const option = document.createElement('option');
+            option.value = idx;
+            option.textContent = `${idx + 1}. ${url}`;
+            select.appendChild(option);
+        });
+    });
+}
+
+// Показ результатов мультисайтового анализа
+showMultiSiteResults(data, urls, strategy) {
+    if (data.sourceAnalyses) {
+        this.sourceAnalyses = data.sourceAnalyses;
+    }
+    this.showResults(data, urls.join(', '));
+
+    // Добавляем бейдж стратегии, если элемент существует
+    const resultsHeader = document.querySelector('.results-header');
+    if (resultsHeader) {
+        // Удаляем старый бейдж, если был
+        const oldBadge = resultsHeader.querySelector('.strategy-info-badge');
+        if (oldBadge) oldBadge.remove();
+
+        const strategyInfo = document.createElement('div');
+        strategyInfo.className = 'strategy-info-badge';
+        strategyInfo.textContent = `Стратегия: ${this.getStrategyName(strategy)}`;
+        resultsHeader.appendChild(strategyInfo);
+    }
+
+    // Восстанавливаем кнопку
+    const analyzeBtn = document.getElementById('analyzeMultipleBtn');
+    if (analyzeBtn) {
+        analyzeBtn.disabled = false;
+        const btnText = analyzeBtn.querySelector('.btn-text');
+        const btnLoading = analyzeBtn.querySelector('.btn-loading');
+        if (btnText) btnText.style.display = 'flex';
+        if (btnLoading) btnLoading.style.display = 'none';
+    }
+}
+
+getRoleName(role) {
+    const names = {
+        primary: 'Основной',
+        accent: 'Акцентный',
+        background: 'Фон',
+        text: 'Текст',
+        surface: 'Поверхность',
+        secondary: 'Вторичный',
+        danger: 'Опасный',
+        success: 'Успех',
+        warning: 'Предупреждение',
+        info: 'Информационный'
+    };
+    return names[role] || role;
+}
+
+getStrategyName(strategyId) {
+    const names = {
+        bestPractices: 'Лучшие практики',
+        commonPatterns: 'Общие паттерны',
+        userPriorities: 'Пользовательские приоритеты',
+        hybrid: 'Гибридная',
+        semanticMerge: 'Семантическое слияние',
+        similarityBased: 'На основе схожести',
+        weightedSemantic: 'Взвешенное семантическое',
+        bestOfEach: 'Лучший из каждого'
+    };
+    return names[strategyId] || strategyId;
+}
+
+// Рендерим источники цветов для мультисайтового анализа
+renderMultiSiteColorSources(data) {
+    const colorItems = document.querySelectorAll('.color-item');
+    colorItems.forEach((item, index) => {
+        if (data.colors.palette[index]?.sources) {
+            const sources = data.colors.palette[index].sources;
+            const sourceInfo = document.createElement('div');
+            sourceInfo.className = 'color-sources';
+            sourceInfo.style.cssText = `
+                margin-top: 0.5rem;
+                padding-top: 0.5rem;
+                border-top: 1px dashed #e2e8f0;
+                font-size: 0.8rem;
+                color: #718096;
+            `;
+            
+            const sourceColors = sources.slice(0, 3).map(source => 
+                `<span style="display: inline-block; width: 12px; height: 12px; background: ${source.hex}; border-radius: 2px; margin-right: 2px;" title="${source.hex}"></span>`
+            ).join('');
+            
+            const extraCount = sources.length > 3 ? `+${sources.length - 3}` : '';
+            sourceInfo.innerHTML = `
+                <div style="margin-bottom: 0.25rem;">Источники:</div>
+                <div>${sourceColors}${extraCount}</div>
+            `;
+            
+            item.querySelector('.color-info')?.appendChild(sourceInfo);
+        }
+    });
+}
 
     // НОВЫЙ МЕТОД: Показ сообщений
     showMessage(message, type = 'info') {
@@ -307,6 +1271,12 @@ class DesignSystemAnalyzer {
     }
 
     showResults(data, url) {
+        const loadingState = document.getElementById('loadingState');
+        const resultsContent = document.getElementById('resultsContent');
+        if (!loadingState || !resultsContent) {
+            console.error('Critical DOM elements missing!');
+            return;
+        }
         document.getElementById('loadingState').style.display = 'none';
         document.getElementById('resultsContent').style.display = 'block';
         
@@ -327,25 +1297,36 @@ class DesignSystemAnalyzer {
         
         // Автоматически генерируем сайт после анализа
         this.generateSite();
+
+        this.initEditor(data);
         
         // Перезагружаем историю
         this.loadHistory();
     }
 
     showError(message) {
-        document.getElementById('loadingState').style.display = 'none';
-        document.getElementById('resultsContent').style.display = 'none';
-        document.getElementById('errorState').style.display = 'block';
-        document.getElementById('synthesisSection').style.display = 'none';
-        
-        document.getElementById('errorMessage').textContent = message;
-        
-        // Восстанавливаем кнопку
-        const analyzeBtn = document.getElementById('analyzeBtn');
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('resultsContent').style.display = 'none';
+    document.getElementById('errorState').style.display = 'block';
+    document.getElementById('errorMessage').textContent = message;
+
+    // Восстанавливаем обе кнопки (одиночный и множественный анализ)
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    if (analyzeBtn) {
         analyzeBtn.disabled = false;
-        analyzeBtn.querySelector('.btn-text').style.display = 'inline';
+        analyzeBtn.querySelector('.btn-text').style.display = 'flex';
         analyzeBtn.querySelector('.btn-loading').style.display = 'none';
     }
+
+    const multiBtn = document.getElementById('analyzeMultipleBtn');
+    if (multiBtn) {
+        multiBtn.disabled = false;
+        const btnText = multiBtn.querySelector('.btn-text');
+        const btnLoading = multiBtn.querySelector('.btn-loading');
+        if (btnText) btnText.style.display = 'flex';
+        if (btnLoading) btnLoading.style.display = 'none';
+    }
+}
 
     renderColorPalette(colors) {
         const container = document.getElementById('colorPalette');
@@ -411,7 +1392,32 @@ class DesignSystemAnalyzer {
             container.innerHTML = '<p>Типографика не найдена</p>';
             return;
         }
-    
+        
+        // Функция для нормализации названия шрифта
+        const normalizeFontForCSS = (fontFamily) => {
+            if (!fontFamily) return 'inherit';
+            
+            // Берем первый шрифт из списка
+            const firstFont = fontFamily.split(',')[0].trim();
+            
+            // Убираем кавычки если есть
+            const cleanFont = firstFont.replace(/['"]/g, '');
+            
+            // Если шрифт содержит пробелы, добавляем кавычки
+            if (cleanFont.includes(' ')) {
+                return `'${cleanFont}'`;
+            }
+            
+            return cleanFont;
+        };
+        
+        // Функция для отображения названия шрифта в тексте
+        const displayFontName = (fontFamily) => {
+            if (!fontFamily) return 'inherit';
+            const firstFont = fontFamily.split(',')[0].trim();
+            return firstFont.replace(/['"]/g, '');
+        };
+        
         let html = `
             <div class="typography-summary">
                 <p>Найдено <strong>${typography.total}</strong> уникальных стилей текста</p>
@@ -422,13 +1428,18 @@ class DesignSystemAnalyzer {
         // Группируем по тегам для лучшего представления
         const groupedByTag = {};
         typography.styles.forEach(style => {
-            const tag = style.tag || 'unknown';
+            const tag = style.tag?.toLowerCase() || 'unknown';
             if (!groupedByTag[tag]) groupedByTag[tag] = [];
             groupedByTag[tag].push(style);
         });
         
-        // Создаем карточки для каждого тега
-        Object.entries(groupedByTag).forEach(([tag, styles]) => {
+        // Создаем карточки только для нужных тегов
+        const neededTags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a', 'button'];
+        
+        neededTags.forEach(tag => {
+            const styles = groupedByTag[tag];
+            if (!styles || styles.length === 0) return;
+            
             html += `
                 <div class="typography-card">
                     <div class="typography-card-header">
@@ -437,16 +1448,18 @@ class DesignSystemAnalyzer {
                     </div>
             `;
             
-            // Показываем до 3 основных стилей для каждого тега
+            // Показываем до 3 стилей для каждого тега
             styles.slice(0, 3).forEach(style => {
                 const fontSizeNum = parseFloat(style.fontSize);
                 const fontSizeDisplay = fontSizeNum > 10 ? fontSizeNum + 'px' : style.fontSize;
+                const normalizedFont = normalizeFontForCSS(style.fontFamily);
+                const displayFont = displayFontName(style.fontFamily);
                 
                 html += `
                     <div class="typography-sample-card">
                         <div class="typography-preview" style="
                             font-size: ${style.fontSize};
-                            font-family: ${style.fontFamily};
+                            font-family: ${normalizedFont}, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                             font-weight: ${style.fontWeight};
                             line-height: ${style.lineHeight};
                             color: ${style.color};
@@ -462,7 +1475,7 @@ class DesignSystemAnalyzer {
                         <div class="typography-properties">
                             <div class="property">
                                 <span class="property-label">Шрифт:</span>
-                                <span class="property-value">${style.fontFamily}</span>
+                                <span class="property-value">${displayFont}</span>
                             </div>
                             <div class="property">
                                 <span class="property-label">Размер:</span>
@@ -481,6 +1494,7 @@ class DesignSystemAnalyzer {
                                 <span class="property-label">Межбуквенный:</span>
                                 <span class="property-value">${style.letterSpacing}</span>
                             </div>` : ''}
+                            
                         </div>
                     </div>
                 `;
@@ -642,19 +1656,19 @@ class DesignSystemAnalyzer {
     }
     
     getButtonTypeName(type) {
-        const names = {
-            primary: 'Основная кнопка',
-            secondary: 'Вторичная кнопка',
-            outline: 'Контурная кнопка',
-            text: 'Текстовая кнопка',
-            warning: 'Предупреждение',
-            danger: 'Опасное действие',
-            success: 'Успешное действие',
-            info: 'Информационная',
-            default: 'Стандартная кнопка'
-        };
-        return names[type] || type;
-    }
+    const names = {
+        primary: 'Основная кнопка',
+        secondary: 'Вторичная кнопка',
+        outline: 'Контурная кнопка',
+        text: 'Текстовая кнопка',
+        danger: 'Кнопка опасного действия',
+        success: 'Кнопка успеха',
+        warning: 'Предупреждение',
+        info: 'Информационная кнопка',
+        icon: 'Кнопка-иконка'
+    };
+    return names[type] || type;
+}
 
     renderDesignTokens(data) {
         // Генерируем CSS токены
@@ -669,12 +1683,23 @@ class DesignSystemAnalyzer {
     }
 
     groupTypographyByTag(styles) {
-        return styles.reduce((groups, style) => {
-            const tag = style.tag || 'unknown';
-            if (!groups[tag]) groups[tag] = [];
-            groups[tag].push(style);
-            return groups;
-        }, {});
+        const groups = {};
+        const neededTags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a', 'button'];
+        
+        // Инициализируем группы
+        neededTags.forEach(tag => {
+            groups[tag] = [];
+        });
+        
+        // Распределяем стили по группам
+        styles.forEach(style => {
+            const tag = style.tag?.toLowerCase();
+            if (neededTags.includes(tag) && groups[tag]) {
+                groups[tag].push(style);
+            }
+        });
+        
+        return groups;
     }
 
     determineColorRole(color, index, palette) {
@@ -750,21 +1775,87 @@ class DesignSystemAnalyzer {
     generateTypographyTokens(styles) {
         if (!styles || !styles.length) return '/* Типографика не найдена */';
         
-        const mainFont = styles[0].fontFamily;
-        let css = `:root {\n  --font-primary: ${mainFont};\n`;
+        // Группируем стили по тегам и находим наиболее частый шрифт
+        const groupedByTag = {};
+        const fontFamilyCount = {};
         
-        // Группируем по размерам
-        const fontSizes = [...new Set(styles.map(s => s.fontSize))].sort((a, b) => 
-            parseFloat(a) - parseFloat(b)
-        );
-        
-        fontSizes.forEach((size, index) => {
-            css += `  --font-size-${index + 1}: ${size};\n`;
+        styles.forEach(style => {
+            const tag = style.tag?.toLowerCase() || 'unknown';
+            if (!groupedByTag[tag]) groupedByTag[tag] = [];
+            groupedByTag[tag].push(style);
+            
+            // Подсчитываем частоту шрифтов
+            if (style.fontFamily) {
+                const font = style.fontFamily.split(',')[0].replace(/['"]/g, '').trim();
+                fontFamilyCount[font] = (fontFamilyCount[font] || 0) + 1;
+            }
         });
         
-        css += '}';
+        // Находим наиболее частый шрифт
+        let mostCommonFont = 'inherit';
+        let maxCount = 0;
+        Object.entries(fontFamilyCount).forEach(([font, count]) => {
+            if (count > maxCount) {
+                maxCount = count;
+                mostCommonFont = font;
+            }
+        });
+        
+        // Определяем базовые стили из тега p или первого найденного
+        const bodyStyles = groupedByTag['p']?.[0] || 
+                          groupedByTag['div']?.[0] || 
+                          groupedByTag['span']?.[0] || 
+                          styles[0];
+        
+        // Базовые переменные
+        let css = ':root {\n';
+        css += `  --font-family-body: "${mostCommonFont}";\n`;
+        
+        css += '\n';
+        
+        // Переменные для конкретных тегов
+        const neededTags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a', 'button'];
+        
+        neededTags.forEach(tag => {
+            const tagStyles = groupedByTag[tag];
+            if (!tagStyles || tagStyles.length === 0) return;
+            
+            const style = tagStyles[0]; // Берем первый стиль для этого тега
+            let fontFamily = style.fontFamily;
+            if (fontFamily) {
+                fontFamily = fontFamily.split(',')[0].replace(/['"]/g, '').trim();
+            }
+            
+            css += `  /* ${tag.toUpperCase()} */\n`;
+            css += `  --${tag}-font-family: "${fontFamily || mostCommonFont}";\n`;
+            css += `  --${tag}-font-size: ${style.fontSize || 'inherit'};\n`;
+            css += `  --${tag}-font-weight: ${style.fontWeight || 'inherit'};\n`;
+            css += `  --${tag}-line-height: ${style.lineHeight || 'inherit'};\n`;
+            if (style.letterSpacing && style.letterSpacing !== 'normal') {
+                css += `  --${tag}-letter-spacing: ${style.letterSpacing};\n`;
+            }
+            if (style.color) {
+                css += `  --${tag}-color: ${style.color};\n`;
+            }
+            css += '\n';
+        });
+        
+        css += '}\n';
+        
+        
         return css;
     }
+
+    // Вспомогательный метод для нормализации названия шрифта
+normalizeFontFamily(fontFamily) {
+    if (!fontFamily) return 'inherit';
+    
+    // Берем первый шрифт из списка
+    const firstFont = fontFamily.split(',')[0].trim();
+    
+    // Убираем кавычки если есть
+    return firstFont.replace(/['"]/g, '');
+}
 
     // МЕТОДЫ СИНТЕЗА САЙТА
     async generateSite() {

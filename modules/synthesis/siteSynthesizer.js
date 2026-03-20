@@ -15,9 +15,16 @@ class SiteSynthesizer {
     }
 
     generateCorporateTemplate(designSystem) {
-        const colors = this.normalizeColors(designSystem.colors.palette);
-        const typography = this.normalizeTypography(designSystem.typography.styles);
-        const buttons = designSystem.buttons;
+    const colors = this.normalizeColors(designSystem.colors.palette);
+    const typography = designSystem.typography?.normalized || 
+                      this.normalizeTypography(designSystem.typography.styles);
+    const buttons = designSystem.buttons;
+    const advanced = designSystem.advanced || {};
+    
+    // Используем advanced настройки если есть
+    const borderRadius = advanced.borderRadius || '8px';
+    const spacing = advanced.spacing || '16px';
+    const animationSpeed = advanced.animationSpeed || '0.3s';
         
         // Получаем CSS для кнопок
         const buttonCSS = this.generateButtonCSS(buttons);
@@ -46,13 +53,13 @@ class SiteSynthesizer {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            transition: all ${animationSpeed} ease;
         }
 
         body {
-            font-family: ${this.ensureFontFamily(typography.body?.fontFamily)}, ${fontsToLoad.fallbackFonts};
+            font-family: ${this.ensureFontFamily(typography.body?.fontFamily, 'body')}, ${fontsToLoad.fallbackFonts};
             font-size: ${typography.body?.fontSize || '16px'};
             line-height: ${typography.body?.lineHeight || '1.5'};
-            letter-spacing: ${typography.body?.letterSpacing || 'normal'};
             color: ${colors.text || '#333333'};
             background: ${colors.background || '#ffffff'};
         }
@@ -60,7 +67,17 @@ class SiteSynthesizer {
         .container {
             max-width: 1200px;
             margin: 0 auto;
-            padding: 0 20px;
+            padding: 0 ${spacing};
+        }
+        
+        /* Используем настроенное скругление */
+        .feature-card, .service-card, .btn-primary, .btn-secondary {
+            border-radius: ${borderRadius};
+        }
+        
+        /* Используем настроенные отступы */
+        section {
+            padding: ${parseInt(spacing) * 2}px ${spacing};
         }
         
         /* Typography Classes */
@@ -71,7 +88,7 @@ class SiteSynthesizer {
         
         /* Typography Elements */
         h1, h2, h3, h4, h5, h6 {
-            font-family: ${this.ensureFontFamily(typography.h1?.fontFamily)}, ${fontsToLoad.fallbackFonts};
+            font-family: ${this.ensureFontFamily(typography.h1?.fontFamily, 'h1')}, ${fontsToLoad.fallbackFonts};
             line-height: ${typography.h1?.lineHeight || '1.2'};
             letter-spacing: ${typography.h1?.letterSpacing || 'normal'};
             text-transform: ${typography.h1?.textTransform || 'none'};
@@ -99,7 +116,7 @@ class SiteSynthesizer {
         }
 
         p {
-            font-family: ${this.ensureFontFamily(typography.p?.fontFamily)}, ${fontsToLoad.fallbackFonts};
+            font-family: ${this.ensureFontFamily(typography.p?.fontFamily, 'p')}, ${fontsToLoad.fallbackFonts};
             margin-top: 0;
             margin-bottom: 1rem;
             font-size: 1rem;
@@ -292,6 +309,14 @@ class SiteSynthesizer {
             margin-top: 3rem;
         }
 
+        .services-grid-more {
+        width: 100%;
+        display: flex;
+        justify-content: flex-end;
+        padding: 20px 0 0;
+
+}
+
         .services-grid h5 {
             color: ${colors.primary || '#007bff'}; 
             text-align: center;
@@ -431,7 +456,7 @@ class SiteSynthesizer {
                 <li><a href="#services" style="color: ${colors.text || '#333333'}">Услуги</a></li>
                 <li><a href="#contact" style="color: ${colors.text || '#333333'}">Контакты</a></li>
             </ul>
-            <button class="cta-button">Связаться</button>
+            <button class="btn-primary">Связаться</button>
             </nav>
     </header>
 
@@ -471,6 +496,9 @@ class SiteSynthesizer {
             <div class="services-grid">
                 ${this.generateServiceCards(colors, typography, 4)}
             </div>
+            <div class="services-grid-more">
+                <button class="btn-outline">Показать все</button>
+            </div>
         </div>
     </section>
 
@@ -507,65 +535,132 @@ class SiteSynthesizer {
     }
 
     /* Вспомогательная функция для правильного форматирования font-family */
-ensureFontFamily(fontFamily) {
-    if (!fontFamily) return "'Arial'";
-    
-    // Если уже есть кавычки, оставляем как есть
-    if (fontFamily.includes("'") || fontFamily.includes('"')) {
-        return fontFamily;
+    ensureFontFamily(fontFamily, typographyKey = null) {
+        if (!fontFamily) {
+            // Возвращаем стандартные шрифты для разных элементов
+            switch(typographyKey) {
+                case 'body':
+                case 'p':
+                    return "'Arial', sans-serif";
+                case 'h1':
+                case 'h2':
+                case 'h3':
+                    return "'Arial', sans-serif";
+                case 'button':
+                    return "'Arial', sans-serif";
+                default:
+                    return "'Arial', sans-serif";
+            }
+        }
+        
+        // Если это системный шрифт
+        const systemFonts = ['system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 
+                            'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'sans-serif', 
+                            'serif', 'monospace', 'Arial', 'Helvetica', 'Times New Roman'];
+        
+        if (systemFonts.some(sysFont => fontFamily.toLowerCase().includes(sysFont.toLowerCase()))) {
+            return fontFamily;
+        }
+        
+        // Если шрифт содержит пробелы, добавляем кавычки
+        if (fontFamily.includes(' ')) {
+            // Берем только первое семейство из списка
+            const firstFont = fontFamily.split(',')[0].trim();
+            if (firstFont.includes(' ')) {
+                return `'${firstFont}'`;
+            }
+            return firstFont;
+        }
+        
+        return fontFamily.split(',')[0].trim();
     }
-    
-    // Иначе добавляем одинарные кавычки
-    return `'${fontFamily.split(',')[0].trim()}'`;
-}
 
     /* Определяем, какие шрифты нужно подключать */
     getFontsToLoad(typography) {
         const fontWeights = {};
         const allFonts = new Set();
         
+        // Системные шрифты, которые не нужно подключать
+        const systemFonts = [
+            'Arial', 'Helvetica', 'system-ui', 'Times New Roman', 'Georgia',
+            'Courier New', 'Verdana', 'Tahoma', 'Trebuchet MS', 'Impact',
+            'Comic Sans MS', 'Lucida Console', 'Monaco', 'monospace',
+            'serif', 'sans-serif', 'cursive', 'fantasy'
+        ];
+        
+        // Google Fonts, которые мы знаем
+        const googleFontsList = [
+            'Montserrat', 'Roboto', 'Open+Sans', 'Lato', 'Oswald', 'Raleway',
+            'Roboto+Condensed', 'Source+Sans+Pro', 'PT+Sans', 'Ubuntu',
+            'Playfair+Display', 'Merriweather', 'Noto+Sans', 'Rubik',
+            'Inter', 'Poppins', 'Nunito', 'Work+Sans', 'Manrope'
+        ];
+        
         // Собираем все шрифты и их веса
         Object.values(typography).forEach(style => {
             if (style && style.fontFamily) {
-                const cleanFont = style.fontFamily.split(',')[0].replace(/['"]/g, '').trim();
+                // Очищаем название шрифта
+                const cleanFont = style.fontFamily.split(',')[0]
+                    .replace(/['"]/g, '')
+                    .trim();
+                
                 if (cleanFont && cleanFont !== 'inherit') {
-                    allFonts.add(cleanFont);
+                    // Проверяем, системный ли это шрифт
+                    const isSystemFont = systemFonts.some(sysFont => 
+                        cleanFont.toLowerCase().includes(sysFont.toLowerCase())
+                    );
                     
-                    if (!fontWeights[cleanFont]) {
-                        fontWeights[cleanFont] = new Set();
-                    }
-                    
-                    // Добавляем вес
-                    if (style.fontWeight) {
-                        // Конвертируем названия в числа
-                        let weight = style.fontWeight;
-                        if (weight === 'normal') weight = '400';
-                        if (weight === 'bold') weight = '700';
-                        fontWeights[cleanFont].add(weight);
+                    if (!isSystemFont) {
+                        allFonts.add(cleanFont);
+                        
+                        if (!fontWeights[cleanFont]) {
+                            fontWeights[cleanFont] = new Set();
+                        }
+                        
+                        // Добавляем вес
+                        if (style.fontWeight) {
+                            let weight = style.fontWeight;
+                            const weightMap = {
+                                'normal': '400',
+                                'bold': '700',
+                                'lighter': '300',
+                                'bolder': '800',
+                                '100': '100', '200': '200', '300': '300', '400': '400',
+                                '500': '500', '600': '600', '700': '700', '800': '800', '900': '900'
+                            };
+                            weight = weightMap[weight] || weight;
+                            fontWeights[cleanFont].add(weight);
+                        }
                     }
                 }
             }
         });
         
-        console.log('📋 Font weights collected:', fontWeights);
+        console.log('📋 Font weights collected:', Object.fromEntries(
+            Object.entries(fontWeights).map(([k, v]) => [k, Array.from(v)])
+        ));
         
-        // Для Google Fonts
+        // Формируем ссылку на Google Fonts
         const googleFonts = [];
-        const availableGoogleFonts = ['Montserrat', 'Roboto', 'Open+Sans', 'Lato'];
+        const nonGoogleFonts = [];
         
-        allFonts.forEach(font => {
-            const normalizedFont = font.replace(/\s+/g, '+');
-            if (availableGoogleFonts.includes(normalizedFont)) {
-                // Получаем все веса для этого шрифта
+        Array.from(allFonts).forEach(font => {
+            // Преобразуем имя шрифта для Google Fonts
+            const googleFontName = font.replace(/\s+/g, '+');
+            
+            // Проверяем, есть ли шрифт в списке Google Fonts
+            if (googleFontsList.includes(googleFontName)) {
                 const weights = fontWeights[font] ? Array.from(fontWeights[font]) : ['400'];
-                // Формируем параметр для Google Fonts
                 const weightsParam = weights.join(';');
-                googleFonts.push(`${normalizedFont}:wght@${weightsParam}`);
+                googleFonts.push(`${googleFontName}:wght@${weightsParam}`);
                 console.log(`✅ Google Font: ${font} with weights ${weightsParam}`);
+            } else {
+                nonGoogleFonts.push(font);
+                console.log(`ℹ️ Non-Google Font: ${font} will use local/fallback`);
             }
         });
         
-        // Формируем ссылку
+        // Формируем ссылку на Google Fonts
         let googleFontsLink = '';
         if (googleFonts.length > 0) {
             googleFontsLink = `
@@ -574,10 +669,24 @@ ensureFontFamily(fontFamily) {
         <link href="https://fonts.googleapis.com/css2?${googleFonts.join('&')}&display=swap" rel="stylesheet">`;
         }
         
+        // Формируем fallback строку для шрифтов
+        let fallbackFonts = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif";
+        if (nonGoogleFonts.length > 0) {
+            // Добавляем не-Google шрифты в начало
+            const nonGoogleString = nonGoogleFonts.map(font => {
+                if (font.includes(' ')) return `'${font}'`;
+                return font;
+            }).join(', ');
+            fallbackFonts = `${nonGoogleString}, ${fallbackFonts}`;
+        }
+        
         return {
             googleFontsLink,
-            fallbackFonts: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif",
-            fonts: Array.from(allFonts)
+            fallbackFonts,
+            googleFonts: Array.from(allFonts).filter(font => 
+                googleFontsList.includes(font.replace(/\s+/g, '+'))
+            ),
+            nonGoogleFonts
         };
     }
 
@@ -781,212 +890,7 @@ generateTypographyCSS(typography, colors) {
     /* CSS для корпоративного шаблона */
     generateCorporateCSS(colors, typography) {
         return `
-/* Header Styles */
-.header {
-    position: fixed;
-    top: 0;
-    width: 100%;
-    z-index: 1000;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-}
 
-.nav {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem 2rem;
-    max-width: 1200px;
-    margin: 0 auto;
-}
-
-.logo {
-    font-size: 1.5rem;
-    font-weight: bold;
-}
-
-.nav-menu {
-    display: flex;
-    list-style: none;
-    gap: 2rem;
-}
-
-.nav-menu a {
-    color: inherit;
-    font-weight: 500;
-}
-
-/* Hero Section */
-.hero {
-    min-height: 80vh;
-    display: flex;
-    align-items: center;
-    padding: 100px 2rem 2rem;
-    max-width: 1200px;
-    margin: 0 auto;
-    gap: 3rem;
-}
-
-.hero-content {
-    flex: 1;
-}
-
-.hero-visual {
-    flex: 1;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-.placeholder-visual {
-    width: 300px;
-    height: 200px;
-    display: flex;
-    align-items: center;
-    taxt-align: center;
-    justify-content: center;
-    border-radius: 8px;
-    font-size: 16px;
-}
-
-.hero-buttons {
-    display: flex;
-    gap: 1rem;
-    margin-top: 2rem;
-}
-
-.btn-primary, .btn-secondary {
-    padding: 12px 24px;
-    border-radius: 6px;
-    font-weight: 500;
-    transition: all 0.3s ease;
-}
-
-.btn-secondary {
-    background: transparent;
-}
-
-/* Features Section */
-.features {
-    padding: 4rem 0;
-}
-
-.features-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 2rem;
-    margin-top: 3rem;
-}
-
-.feature-card {
-    padding: 2rem;
-    border-radius: 8px;
-    text-align: center;
-    background: ${colors.surface || '#ffffff'};
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    transition: transform 0.3s ease;
-}
-
-.feature-card:hover {
-    transform: translateY(-5px);
-}
-
-.feature-icon {
-    width: 60px;
-    height: 60px;
-    margin: 0 auto 1rem;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.5rem;
-}
-
-/* Services Section */
-.services {
-    padding: 4rem 0;
-}
-
-.services-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 2rem;
-    margin-top: 3rem;
-}
-
-.service-card {
-    padding: 2rem;
-    border-radius: 8px;
-    background: ${colors.background || '#ffffff'};
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-/* Contact Section */
-.contact {
-    padding: 4rem 0;
-}
-
-.contact-content {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 3rem;
-    margin-top: 3rem;
-}
-
-.contact-form {
-    padding: 2rem;
-    border-radius: 8px;
-}
-
-.contact-form input,
-.contact-form textarea {
-    width: 100%;
-    padding: 12px;
-    margin-bottom: 1rem;
-    border-radius: 4px;
-    font-size: 1rem;
-}
-
-.contact-form textarea {
-    height: 120px;
-    resize: vertical;
-}
-
-/* Footer */
-.footer {
-    padding: 2rem 0;
-    text-align: center;
-}
-
-/* Responsive Design */
-@media (max-width: 768px) {
-    .nav {
-        flex-direction: column;
-        gap: 1rem;
-    }
-    
-    .nav-menu {
-        gap: 1rem;
-    }
-    
-    .hero {
-        flex-direction: column;
-        text-align: center;
-        padding-top: 120px;
-    }
-    
-    .hero-buttons {
-        justify-content: center;
-    }
-    
-    .contact-content {
-        grid-template-columns: 1fr;
-    }
-    
-    .features-grid,
-    .services-grid {
-        grid-template-columns: 1fr;
-    }
-}
 `;
     }
 
@@ -1199,101 +1103,137 @@ generateTypographyCSS(typography, colors) {
         }
     
         // Обрабатываем другие теги (p, a, button, body)
-        const otherTags = ['p', 'a', 'button', 'body'];
-        
-        otherTags.forEach(tag => {
-            if (byTag[tag] && byTag[tag].length > 0) {
-                const style = byTag[tag][0];
-                normalized[tag] = {
-                    fontSize: style.fontSize,
-                    fontFamily: style.fontFamily,
-                    fontWeight: style.fontWeight,
-                    lineHeight: style.lineHeight,
-                    letterSpacing: style.letterSpacing,
-                    textTransform: style.textTransform,
-                    color: style.color
-                };
-                console.log(`✅ Set ${tag}: ${normalized[tag].fontFamily} ${normalized[tag].fontSize}`);
-            } else {
-                // Специальная логика для body
-                if (tag === 'body') {
-                    if (byTag['p'] && byTag['p'].length > 0) {
-                        const pStyle = byTag['p'][0];
-                        normalized.body = {
-                            fontSize: pStyle.fontSize,
-                            fontFamily: pStyle.fontFamily,
-                            fontWeight: pStyle.fontWeight,
-                            lineHeight: pStyle.lineHeight,
-                            letterSpacing: pStyle.letterSpacing || 'normal',
-                            textTransform: pStyle.textTransform || 'none'
-                        };
-                        console.log(`✅ Set body from p: ${normalized.body.fontFamily}`);
-                    } else if (byTag['div'] && byTag['div'].length > 0) {
-                        const divStyle = byTag['div'][0];
-                        normalized.body = {
-                            fontSize: divStyle.fontSize,
-                            fontFamily: divStyle.fontFamily,
-                            fontWeight: divStyle.fontWeight,
-                            lineHeight: divStyle.lineHeight,
-                            letterSpacing: divStyle.letterSpacing || 'normal',
-                            textTransform: divStyle.textTransform || 'none'
-                        };
-                        console.log(`✅ Set body from div: ${normalized.body.fontFamily}`);
-                    }
+const otherTags = ['p', 'a', 'button', 'body'];
+
+otherTags.forEach(tag => {
+    if (byTag[tag] && byTag[tag].length > 0) {
+        const style = byTag[tag][0];
+        normalized[tag] = {
+            fontSize: style.fontSize,
+            fontFamily: style.fontFamily,
+            fontWeight: style.fontWeight,
+            lineHeight: style.lineHeight,
+            letterSpacing: style.letterSpacing,
+            textTransform: style.textTransform,
+            color: style.color
+        };
+        console.log(`✅ Set ${tag}: ${normalized[tag].fontFamily} ${normalized[tag].fontSize}`);
+    } else {
+        // Специальная логика для body - ИСПРАВЛЕННАЯ ВЕРСИЯ
+        if (tag === 'body') {
+            // Ищем наиболее подходящий шрифт для body
+            let bestBodyFont = null;
+            
+            // Приоритет 1: шрифт из параграфа
+            if (byTag['p'] && byTag['p'].length > 0) {
+                const pStyle = byTag['p'][0];
+                // Проверяем, что размер шрифта не слишком большой для body
+                const fontSizeNum = parseFloat(pStyle.fontSize);
+                if (fontSizeNum <= 24) { // Максимум 24px для body
+                    bestBodyFont = pStyle;
                 }
-                
-                // Для button, если не найден, используем стиль от a или p
-                else if (tag === 'button') {
-                    if (byTag['a'] && byTag['a'].length > 0) {
-                        const aStyle = byTag['a'][0];
-                        normalized.button = {
-                            fontSize: aStyle.fontSize,
-                            fontFamily: aStyle.fontFamily,
-                            fontWeight: aStyle.fontWeight,
-                            lineHeight: aStyle.lineHeight,
-                            letterSpacing: aStyle.letterSpacing || 'normal',
-                            textTransform: aStyle.textTransform || 'none'
-                        };
-                    } else if (byTag['p'] && byTag['p'].length > 0) {
-                        const pStyle = byTag['p'][0];
-                        normalized.button = {
-                            fontSize: pStyle.fontSize,
-                            fontFamily: pStyle.fontFamily,
-                            fontWeight: pStyle.fontWeight || '500',
-                            lineHeight: pStyle.lineHeight,
-                            letterSpacing: pStyle.letterSpacing || 'normal',
-                            textTransform: pStyle.textTransform || 'none'
-                        };
+            }
+            
+            // Приоритет 2: шрифт из span или div с нормальным размером
+            if (!bestBodyFont) {
+                for (const testTag of ['span', 'div', 'section', 'article']) {
+                    if (byTag[testTag] && byTag[testTag].length > 0) {
+                        const style = byTag[testTag][0];
+                        const fontSizeNum = parseFloat(style.fontSize);
+                        if (fontSizeNum >= 14 && fontSizeNum <= 20) {
+                            bestBodyFont = style;
+                            break;
+                        }
                     }
                 }
             }
-        });
+            
+            // Приоритет 3: любой шрифт с разумным размером
+            if (!bestBodyFont) {
+                const allStyles = Object.values(byTag).flat();
+                for (const style of allStyles) {
+                    if (style) {
+                        const fontSizeNum = parseFloat(style.fontSize);
+                        if (fontSizeNum >= 14 && fontSizeNum <= 20) {
+                            bestBodyFont = style;
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // Приоритет 4: первый попавшийся
+            if (!bestBodyFont) {
+                const allStyles = Object.values(byTag).flat();
+                bestBodyFont = allStyles.find(s => s) || null;
+            }
+            
+            if (bestBodyFont) {
+                normalized.body = {
+                    fontSize: this.adjustBodyFontSize(bestBodyFont.fontSize),
+                    fontFamily: bestBodyFont.fontFamily,
+                    fontWeight: bestBodyFont.fontWeight || 'normal',
+                    lineHeight: bestBodyFont.lineHeight || '1.5',
+                    letterSpacing: bestBodyFont.letterSpacing || 'normal',
+                    textTransform: bestBodyFont.textTransform || 'none'
+                };
+                console.log(`✅ Set body from ${bestBodyFont.tag}: ${normalized.body.fontFamily} ${normalized.body.fontSize}`);
+            }
+        }
+    }
+});
     
         return normalized;
     }
+
+    // Добавить в класс SiteSynthesizer в siteSynthesizer.js
+adjustBodyFontSize(originalSize) {
+    const sizeNum = parseFloat(originalSize) || 16;
+    
+    // Если размер слишком большой для body, уменьшаем
+    if (sizeNum > 20) {
+        return '18px'; // Оптимальный размер для body
+    }
+    
+    // Если размер слишком маленький, увеличиваем
+    if (sizeNum < 14) {
+        return '16px';
+    }
+    
+    // Возвращаем оригинальный размер, если он в пределах нормы
+    return `${sizeNum}px`;
+}
     
     /* Вспомогательная функция для корректировки размера шрифта в зависимости от уровня заголовка */
-    adjustFontSizeForHeading(tag, originalSize) {
-        const headingLevels = {
-            'h1': 1, 'h2': 2, 'h3': 3, 'h4': 4, 'h5': 5, 'h6': 6
-        };
-        
-        const baseSize = parseFloat(originalSize) || 16;
-        const level = headingLevels[tag] || 1;
-        
-        // Коэффициенты для уменьшения размера шрифта для более мелких заголовков
-        const multipliers = {
-            1: 1.0,    // h1 - 100%
-            2: 0.85,   // h2 - 85%
-            3: 0.70,   // h3 - 70%
-            4: 0.60,   // h4 - 60%
-            5: 0.50,   // h5 - 50%
-            6: 0.45    // h6 - 45%
-        };
-        
-        const adjustedSize = baseSize * multipliers[level];
-        return `${adjustedSize}px`;
+adjustFontSizeForHeading(tag, originalSize) {
+    const headingLevels = {
+        'h1': 1, 'h2': 2, 'h3': 3, 'h4': 4, 'h5': 5, 'h6': 6
+    };
+    
+    const baseSize = parseFloat(originalSize) || 16;
+    const level = headingLevels[tag] || 1;
+    
+    // Более мягкие коэффициенты для уменьшения размера шрифта
+    const multipliers = {
+        1: 1.0,    // h1 - 100%
+        2: 0.80,   // h2 - 80%
+        3: 0.65,   // h3 - 65%
+        4: 0.55,   // h4 - 55%
+        5: 0.45,   // h5 - 45%
+        6: 0.40    // h6 - 40%
+    };
+    
+    // Минимальный размер шрифта
+    const minSize = 14;
+    const adjustedSize = Math.max(baseSize * multipliers[level], minSize);
+    
+    // Для h1-h4 ограничиваем максимальный размер
+    if (level <= 4 && adjustedSize > 48) {
+        return '48px';
     }
+    
+    return `${Math.round(adjustedSize)}px`;
+}
 
     /* Вспомогательные методы */
     getContrastColor(hexColor) {

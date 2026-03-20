@@ -5,6 +5,7 @@ const fs = require('fs');
 const analyzeDesignSystem = require('../modules/analyzer');
 const DesignSystemExporter = require('../modules/exporter');
 const SiteSynthesizer = require('../modules/synthesis/siteSynthesizer');
+const SmartMultiSiteAnalyzer = require('../modules/smartMultiSiteAnalyzer');
 
 const app = express();
 
@@ -216,6 +217,152 @@ app.get('/api/synthesize/templates', (req, res) => {
         templates: Object.keys(synthesizer.templates)
     });
 });
+
+// API для умного анализа нескольких сайтов
+app.post('/api/analyze-smart', async (req, res) => {
+    try {
+        const { urls, strategy = 'semanticMerge', weights } = req.body;
+        
+        if (!urls || !Array.isArray(urls) || urls.length === 0) {
+            return res.status(400).json({ 
+                error: 'URLs array is required',
+                details: 'Please provide an array of website URLs'
+            });
+        }
+
+        console.log(`🧠 Starting SMART multi-site analysis of ${urls.length} sites`);
+        
+        const analyzer = new SmartMultiSiteAnalyzer();
+        const result = await analyzer.analyzeMultipleSites(urls, {
+            strategy,
+            weights
+        });
+        
+        // Добавляем в историю
+        const historyItem = {
+            id: Date.now(),
+            urls: urls,
+            domains: urls.map(url => new URL(url).hostname),
+            timestamp: new Date().toISOString(),
+            type: 'smart-multi-site',
+            siteCount: urls.length,
+            strategy: strategy,
+            colors: result.colors.palette.slice(0, 5),
+            typographyCount: result.typography.styles.length,
+            colorCount: result.colors.palette.length
+        };
+        
+        analysisHistory.unshift(historyItem);
+        analysisHistory = analysisHistory.slice(0, 20);
+        
+        console.log(`✅ Smart multi-site analysis completed for ${urls.length} sites`);
+        res.json({
+            success: true,
+            data: result,
+            historyId: historyItem.id,
+            timestamp: historyItem.timestamp
+        });
+
+    } catch (error) {
+        console.error('❌ Smart multi-site analysis error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            details: 'Smart analysis failed. Please check URLs and try again.'
+        });
+    }
+});
+
+// API для получения умных стратегий
+app.get('/api/analysis/smart-strategies', (req, res) => {
+    const analyzer = new SmartMultiSiteAnalyzer();
+    const strategies = Object.keys(analyzer.strategies).map(key => ({
+        id: key,
+        name: this.getStrategyName(key),
+        description: this.getStrategyDescription(key)
+    }));
+    
+    res.json({
+        success: true,
+        strategies: strategies
+    });
+});
+
+// API для анализа нескольких сайтов (кросс-референсный анализ)
+app.post('/api/analyze-multiple', async (req, res) => {
+    try {
+        const { urls, strategy = 'bestPractices', preferences } = req.body;
+        
+        if (!urls || !Array.isArray(urls) || urls.length === 0) {
+            return res.status(400).json({ 
+                error: 'URLs array is required',
+                details: 'Please provide an array of website URLs'
+            });
+        }
+
+        console.log(`🌐 Starting multi-site analysis of ${urls.length} sites with strategy: ${strategy}`);
+        
+        const analyzer = new SmartMultiSiteAnalyzer();
+        const result = await analyzer.analyzeMultipleSites(urls, {
+            strategy,
+            preferences
+        });
+        
+        // Добавляем в историю
+        const historyItem = {
+            id: Date.now(),
+            urls: urls,
+            domains: urls.map(url => new URL(url).hostname),
+            timestamp: new Date().toISOString(),
+            type: 'multi-site',
+            siteCount: urls.length,
+            strategy: strategy,
+            colors: result.colors.palette.slice(0, 5),
+            typographyCount: result.typography.styles.length,
+            colorCount: result.colors.palette.length
+        };
+        
+        analysisHistory.unshift(historyItem);
+        analysisHistory = analysisHistory.slice(0, 20);
+        
+        console.log(`✅ Multi-site analysis completed for ${urls.length} sites`);
+        res.json({
+            success: true,
+            data: result,
+            historyId: historyItem.id,
+            timestamp: historyItem.timestamp
+        });
+
+    } catch (error) {
+        console.error('❌ Multi-site analysis error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            details: 'Multi-site analysis failed. Please check URLs and try again.'
+        });
+    }
+});
+
+// Функции для названий и описаний стратегий (можно добавить в server)
+function getStrategyName(strategyId) {
+    const names = {
+        'semanticMerge': 'Семантическое слияние',
+        'similarityBased': 'На основе схожести',
+        'weightedSemantic': 'Взвешенное семантическое',
+        'bestOfEach': 'Лучший из каждого'
+    };
+    return names[strategyId] || strategyId;
+}
+
+function getStrategyDescription(strategyId) {
+    const descriptions = {
+        'semanticMerge': 'Умное объединение с учетом семантики и гармонии',
+        'similarityBased': 'Группировка схожих элементов и усреднение',
+        'weightedSemantic': 'Учет пользовательских предпочтений и весов',
+        'bestOfEach': 'Выбор лучших элементов из каждого сайта'
+    };
+    return descriptions[strategyId] || 'Описание отсутствует';
+}
 
 // Функция для поиска свободного порта
 function findFreePort(startPort = 3000, maxAttempts = 50) {

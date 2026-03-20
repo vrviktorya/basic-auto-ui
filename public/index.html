@@ -71,6 +71,86 @@
                         </div>
                     </div>
                 </div>
+                
+                <div class="card">
+                    <h2>
+                        <span class="section-icon material-symbols-outlined">link</span>
+                        Кросс-референсный анализ (несколько сайтов)
+                    </h2>
+                    
+                    <div class="multi-url-inputs" id="multiUrlInputs">
+                        <div class="input-group" id="multiUrlInputs">
+                            <input type="url" id="urlInput" placeholder="https://example.com" required class="multi-url-input url-input">
+                            <button type="button" class="btn-remove-url" >
+                                <span class="material-symbols-outlined delete">delete</span>
+                            </button>
+                            <button type="button" class="analyze-btn" id="analyzeMultipleBtn">
+                                <span class="btn-text">Анализировать</span>
+                                <span class="btn-loading" style="display: none;">
+                                    <span class="material-symbols-outlined">progress_activity</span>Анализ...</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                        <button type="button" id="addUrlBtn" class="btn-secondary">
+                            <span class="material-symbols-outlined">add</span>
+                            Добавить сайт
+                        </button>
+
+                        <select id="strategySelect" class="template-select">
+                            <option value="bestPractices">Лучшие практики</option>
+                            <option value="commonPatterns">Общие паттерны</option>
+                            <option value="userPriorities">Пользовательские приоритеты</option>
+                            <option value="hybrid">Гибридная</option>
+                        </select>
+                        <!-- Блок для стратегии "Пользовательские приоритеты" (скрыт по умолчанию) -->
+                        <div id="userPrioritiesPanel" class="strategy-panel" style="display: none; margin-top: 1.5rem; padding: 1rem; background: #f8fafc; border-radius: 8px;">
+                            <h4>Выберите источники для каждой категории:</h4>
+                            <div class="priority-row">
+                                <label>Цвета:</label>
+                                <select id="colorSourceSelect" class="priority-select"></select>
+                            </div>
+                            <div class="priority-row">
+                                <label>Типографика:</label>
+                                <select id="typographySourceSelect" class="priority-select"></select>
+                            </div>
+                            <div class="priority-row">
+                                <label>Кнопки:</label>
+                                <select id="buttonsSourceSelect" class="priority-select"></select>
+                            </div>
+                        </div>
+
+                        <!-- Блок для стратегии "Гибридная" (скрыт по умолчанию) -->
+                        <div id="hybridPanel" class="strategy-panel" style="display: none; margin-top: 1.5rem; padding: 1rem; background: #f8fafc; border-radius: 8px;">
+                            <h4>Использовать общие паттерны для:</h4>
+                            <div class="priority-row">
+                                <label>
+                                    <input type="checkbox" id="hybridColors" checked> Цвета
+                                </label>
+                            </div>
+                            <div class="priority-row">
+                                <label>
+                                    <input type="checkbox" id="hybridTypography" checked> Типографика
+                                </label>
+                            </div>
+                            <div class="priority-row">
+                                <label>
+                                    <input type="checkbox" id="hybridButtons" checked> Кнопки
+                                </label>
+                            </div>
+                            <p class="info-text">Если отмечено — будут использованы общие паттерны (встречающиеся в нескольких сайтах), иначе — лучшие практики.</p>
+                        </div>
+                    </div>
+                
+                    <div class="strategy-info" style="margin-top: 0.5rem; font-size: 0.85rem; color: #718096;">
+                        <p><strong>Стратегии:</strong></p>
+                        <ul style="margin: 0.25rem 0; padding-left: 1rem;">
+                            <li><strong>Доминирующий:</strong> Берет стили с самого насыщенного сайта</li>
+                            <li><strong>Усреднение:</strong> Комбинирует стили из всех сайтов</li>
+                            <li><strong>Взвешенный:</strong> Учитывает приоритеты сайтов</li>
+                        </ul>
+                    </div>
+                </div>
             </section>
 
             <!-- Results Section -->
@@ -211,6 +291,60 @@
                                 <span class="info-label">Типографика:</span>
                                 <span id="typographyInfo" class="info-value">Адаптивная</span>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Editor Section -->
+            <section id="editorSection" class="editor-section" style="display: none;">
+                <div class="card">
+                    <div class="editor-header">
+                        <h2>
+                            <span class="section-icon material-symbols-outlined">edit</span>
+                            Редактор дизайн-системы
+                        </h2>
+                        <div class="editor-actions">
+                            <button class="btn-secondary" id="applyChangesBtn" style="display: none;">
+                                <span class="material-symbols-outlined">check</span>
+                                Применить
+                            </button>
+                            <button class="btn-secondary" id="exportDesignBtn">
+                                <span class="material-symbols-outlined">download</span>
+                                Экспорт
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Вкладки -->
+                    <div class="editor-tabs">
+                        <button class="tab-btn active" data-tab="colors">Цвета</button>
+                        <button class="tab-btn" data-tab="typography">Типографика</button>
+                        <button class="tab-btn" data-tab="buttons">Кнопки</button>
+                    </div>
+
+                    <!-- Цвета -->
+                    <div id="tabColors" class="tab-pane active">
+                        <div class="editor-category">
+                            <h3>Цветовая палитра</h3>
+                            <p class="category-description">Нажмите на цвет для изменения. Можно перетаскивать для изменения порядка.</p>
+                            <div id="colorEditor" class="color-editor-grid"></div>
+                        </div>
+                    </div>
+
+                    <!-- Типографика -->
+                    <div id="tabTypography" class="tab-pane">
+                        <div class="editor-category">
+                            <h3>Типографика</h3>
+                            <div id="typographyEditor" class="typography-editor"></div>
+                        </div>
+                    </div>
+
+                    <!-- Кнопки -->
+                    <div id="tabButtons" class="tab-pane">
+                        <div class="editor-category">
+                            <h3>Кнопки</h3>
+                            <div id="buttonsEditor" class="buttons-editor"></div>
                         </div>
                     </div>
                 </div>
